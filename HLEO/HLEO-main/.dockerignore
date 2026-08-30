@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.env.example
+.venv/
+.hleo/
+__pycache__/
+*.pyc
+*.zip
+*.db
+.agent_*.json
+.agents_tmp/
+docs/
+tests/
+benchmarks/

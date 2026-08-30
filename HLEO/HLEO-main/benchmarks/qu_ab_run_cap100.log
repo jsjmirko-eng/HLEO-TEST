@@ -1,0 +1,33 @@
+nohup: ignoring input
+[1/10] La finasteride può causare shedding iniziale?
+    A: uniq=355 rel=108 P@30=0.30 R@30=0.30
+    B: uniq=355 rel=108 P@30=0.30 R@30=0.30 (+5 qu, only-B=0, only-A=0)
+[2/10] finasteride shedding
+    A: uniq=355 rel=168 P@30=0.07 R@30=0.07
+    B: uniq=355 rel=168 P@30=0.07 R@30=0.07 (+5 qu, only-B=0, only-A=0)
+[3/10] finasteride hair shedding
+    A: uniq=355 rel=108 P@30=0.30 R@30=0.30
+    B: uniq=355 rel=108 P@30=0.30 R@30=0.30 (+4 qu, only-B=0, only-A=0)
+[4/10] caduta capelli finasteride
+    A: uniq=355 rel=108 P@30=0.47 R@30=0.30
+    B: uniq=355 rel=108 P@30=0.47 R@30=0.30 (+5 qu, only-B=0, only-A=0)
+[5/10] finasteride initial shedding
+    A: uniq=355 rel=108 P@30=0.30 R@30=0.30
+    B: uniq=355 rel=108 P@30=0.30 R@30=0.30 (+5 qu, only-B=0, only-A=0)
+[6/10] propecia side effects
+    A: uniq=355 rel=171 P@30=0.20 R@30=0.20
+    B: uniq=355 rel=171 P@30=0.20 R@30=0.20 (+7 qu, only-B=0, only-A=0)
+[7/10] minoxidil hair loss
+    A: uniq=355 rel=106 P@30=0.63 R@30=0.27
+    B: uniq=355 rel=106 P@30=0.63 R@30=0.27 (+4 qu, only-B=0, only-A=0)
+[8/10] finasteride dutasteride minoxidil
+    A: uniq=355 rel=217 P@30=0.00 R@30=0.00
+    B: uniq=355 rel=217 P@30=0.00 R@30=0.00 (+3 qu, only-B=0, only-A=0)
+[9/10] androgenetic alopecia treatment
+    A: uniq=355 rel=206 P@30=1.00 R@30=0.00
+    B: uniq=355 rel=206 P@30=1.00 R@30=0.00 (+6 qu, only-B=0, only-A=0)
+[10/10] caduta capelli
+    A: uniq=355 rel=208 P@30=0.63 R@30=0.00
+    B: uniq=355 rel=208 P@30=0.63 R@30=0.00 (+3 qu, only-B=0, only-A=0)
+
+Saved: qu_ab_report_cap100.json, qu_ab_details_cap100.json, qu_cache.json, corpus_snapshot.json

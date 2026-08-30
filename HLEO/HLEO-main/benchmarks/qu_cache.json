@@ -1,0 +1,284 @@
+{
+  "La finasteride può causare shedding iniziale?": {
+    "conditions": [],
+    "interventions": [
+      "finasteride"
+    ],
+    "outcomes": [
+      "initial shedding"
+    ],
+    "relation": {
+      "type": "side_effect",
+      "description": "Initial shedding as a side effect of finasteride"
+    },
+    "synonyms": {
+      "finasteride": [
+        "Propecia",
+        "Proscar"
+      ],
+      "initial shedding": [
+        "shedding phase",
+        "hair loss at start"
+      ]
+    },
+    "search_concepts": [
+      "finasteride initial shedding experiences",
+      "finasteride side effects stories",
+      "initial hair loss finasteride"
+    ]
+  },
+  "finasteride shedding": {
+    "conditions": [],
+    "interventions": [
+      "finasteride"
+    ],
+    "outcomes": [
+      "shedding"
+    ],
+    "relation": {
+      "type": "unknown",
+      "description": "The relationship between finasteride and shedding is not clearly defined, as shedding can occur as a side effect or as part of the treatment process."
+    },
+    "synonyms": {
+      "finasteride": [
+        "Propecia",
+        "Proscar"
+      ],
+      "shedding": [
+        "hair loss",
+        "hair shedding"
+      ]
+    },
+    "search_concepts": [
+      "finasteride shedding experiences",
+      "finasteride hair loss stories",
+      "finasteride initial shedding effects"
+    ]
+  },
+  "finasteride hair shedding": {
+    "conditions": [],
+    "interventions": [
+      "finasteride"
+    ],
+    "outcomes": [
+      "hair shedding"
+    ],
+    "relation": {
+      "type": "side_effect",
+      "description": "Initial hair shedding associated with finasteride use"
+    },
+    "synonyms": {
+      "finasteride": [
+        "Propecia",
+        "Proscar"
+      ],
+      "hair shedding": [
+        "hair loss",
+        "shedding hair"
+      ]
+    },
+    "search_concepts": [
+      "finasteride hair shedding experiences",
+      "finasteride initial shedding",
+      "finasteride side effects",
+      "hair loss after finasteride",
+      "finasteride user stories"
+    ]
+  },
+  "caduta capelli finasteride": {
+    "conditions": [
+      "hair loss"
+    ],
+    "interventions": [
+      "finasteride"
+    ],
+    "outcomes": [],
+    "relation": {
+      "type": "treatment",
+      "description": "finasteride is used to treat hair loss"
+    },
+    "synonyms": {
+      "hair loss": [
+        "caduta capelli",
+        "alopecia"
+      ],
+      "finasteride": [
+        "Propecia",
+        "Proscar"
+      ]
+    },
+    "search_concepts": [
+      "finasteride hair loss experiences",
+      "finasteride effectiveness stories",
+      "finasteride user reviews"
+    ]
+  },
+  "finasteride initial shedding": {
+    "conditions": [],
+    "interventions": [
+      "finasteride"
+    ],
+    "outcomes": [
+      "initial shedding"
+    ],
+    "relation": {
+      "type": "treatment",
+      "description": "The relationship between finasteride and the initial shedding of hair."
+    },
+    "synonyms": {
+      "finasteride": [
+        "Propecia",
+        "Proscar"
+      ],
+      "initial shedding": [
+        "shedding phase",
+        "hair loss at start"
+      ]
+    },
+    "search_concepts": [
+      "finasteride shedding experiences",
+      "initial hair loss finasteride",
+      "finasteride side effects stories"
+    ]
+  },
+  "propecia side effects": {
+    "conditions": [],
+    "interventions": [
+      "finasteride"
+    ],
+    "outcomes": [
+      "side effects"
+    ],
+    "relation": {
+      "type": "side_effect",
+      "description": "Side effects associated with the use of Propecia (finasteride)."
+    },
+    "synonyms": {
+      "finasteride": [
+        "Propecia",
+        "hair loss treatment"
+      ],
+      "side effects": [
+        "adverse effects",
+        "negative effects"
+      ]
+    },
+    "search_concepts": [
+      "Propecia side effects experiences",
+      "finasteride adverse effects stories",
+      "Propecia user reviews"
+    ]
+  },
+  "minoxidil hair loss": {
+    "conditions": [
+      "hair loss"
+    ],
+    "interventions": [
+      "minoxidil"
+    ],
+    "outcomes": [],
+    "relation": {
+      "type": "treatment",
+      "description": "Minoxidil is used to treat hair loss."
+    },
+    "synonyms": {
+      "hair loss": [
+        "alopecia",
+        "baldness"
+      ],
+      "minoxidil": [
+        "Rogaine",
+        "Regaine"
+      ]
+    },
+    "search_concepts": [
+      "minoxidil effectiveness stories",
+      "minoxidil side effects experiences",
+      "minoxidil hair growth results"
+    ]
+  },
+  "finasteride dutasteride minoxidil": {
+    "conditions": [],
+    "interventions": [
+      "finasteride",
+      "dutasteride",
+      "minoxidil"
+    ],
+    "outcomes": [],
+    "relation": {
+      "type": "unknown",
+      "description": "The relationship between the mentioned interventions is not specified."
+    },
+    "synonyms": {
+      "finasteride": [
+        "Propecia",
+        "Proscar"
+      ],
+      "dutasteride": [
+        "Avodart"
+      ],
+      "minoxidil": [
+        "Rogaine"
+      ]
+    },
+    "search_concepts": [
+      "finasteride vs dutasteride experiences",
+      "minoxidil user reviews",
+      "hair loss treatment comparisons"
+    ]
+  },
+  "androgenetic alopecia treatment": {
+    "conditions": [
+      "androgenetic alopecia"
+    ],
+    "interventions": [
+      "finasteride",
+      "minoxidil"
+    ],
+    "outcomes": [],
+    "relation": {
+      "type": "treatment",
+      "description": "treatment options for androgenetic alopecia"
+    },
+    "synonyms": {
+      "androgenetic alopecia": [
+        "male pattern baldness",
+        "female pattern hair loss"
+      ],
+      "finasteride": [
+        "Propecia"
+      ],
+      "minoxidil": [
+        "Rogaine"
+      ]
+    },
+    "search_concepts": [
+      "androgenetic alopecia treatment experiences",
+      "finasteride effectiveness stories",
+      "minoxidil user reviews"
+    ]
+  },
+  "caduta capelli": {
+    "conditions": [
+      "hair loss"
+    ],
+    "interventions": [],
+    "outcomes": [],
+    "relation": {
+      "type": "unknown",
+      "description": "The query does not specify a clear relationship between conditions, interventions, or outcomes."
+    },
+    "synonyms": {
+      "hair loss": [
+        "caduta capelli",
+        "alopecia",
+        "baldness"
+      ]
+    },
+    "search_concepts": [
+      "hair loss experiences",
+      "caduta capelli stories",
+      "alopecia patient accounts"
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+nohup: ignoring input
+[A] finasteride shedding
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=['hair shedding'] cd=[]
+     PRE n=355 (judge-rel 16) | V1 n=168 P=0.095 R=1.000 FP=152 lost=0 | V3 n=24 P=0.625 R=0.938 FP=9 lost=1
+     Δ P=+0.530 R=-0.062 kept=-144 lost_rel=+1 FP=-143 | plan=2.05s score v1=11.9ms v3=18.5ms
+[A] finasteride hair shedding
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=['hair shedding'] cd=[]
+     PRE n=355 (judge-rel 16) | V1 n=108 P=0.139 R=0.938 FP=93 lost=1 | V3 n=47 P=0.319 R=0.938 FP=32 lost=1
+     Δ P=+0.180 R=+0.000 kept=-61 lost_rel=+0 FP=-61 | plan=1.52s score v1=18.4ms v3=25.7ms
+[A] minoxidil hair loss
+     intent(llm, llm_calls=1): iv=['minoxidil'] oc=[] cd=['hair loss']
+     PRE n=355 (judge-rel 15) | V1 n=106 P=0.113 R=0.800 FP=94 lost=3 | V3 n=15 P=0.667 R=0.667 FP=5 lost=5
+     Δ P=+0.553 R=-0.133 kept=-91 lost_rel=+2 FP=-89 | plan=1.49s score v1=17.6ms v3=26.4ms
+[B] finasteride
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=[] cd=[]
+     PRE n=355 (judge-rel 68) | V1 n=168 P=0.405 R=1.000 FP=100 lost=0 | V3 n=168 P=0.405 R=1.000 FP=100 lost=0
+     Δ P=+0.000 R=+0.000 kept=+0 lost_rel=+0 FP=+0 | plan=1.42s score v1=10.5ms v3=11.4ms
+[B] minoxidil
+     intent(llm, llm_calls=1): iv=['minoxidil'] oc=[] cd=[]
+     PRE n=355 (judge-rel 76) | V1 n=164 P=0.390 R=0.842 FP=100 lost=12 | V3 n=164 P=0.390 R=0.842 FP=100 lost=12
+     Δ P=+0.000 R=+0.000 kept=+0 lost_rel=+0 FP=+0 | plan=1.48s score v1=10.6ms v3=10.1ms
+[C] androgenetic alopecia
+     intent(llm, llm_calls=1): iv=[] oc=[] cd=['androgenetic alopecia']
+     PRE n=355 (judge-rel 114) | V1 n=206 P=0.553 R=1.000 FP=92 lost=0 | V3 n=210 P=0.543 R=1.000 FP=96 lost=0
+     Δ P=-0.011 R=+0.000 kept=+4 lost_rel=+0 FP=+4 | plan=1.59s score v1=18.3ms v3=45.5ms
+[C] hair loss
+     intent(llm, llm_calls=1): iv=[] oc=[] cd=['hair loss']
+     PRE n=355 (judge-rel 182) | V1 n=208 P=0.861 R=0.984 FP=29 lost=3 | V3 n=210 P=0.852 R=0.984 FP=31 lost=3
+     Δ P=-0.008 R=+0.000 kept=+2 lost_rel=+0 FP=+2 | plan=1.48s score v1=16.6ms v3=33.5ms
+[D] finasteride can cause depression
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=['depression'] cd=[]
+     PRE n=355 (judge-rel 0) | V1 n=18 P=0.000 R=0.000 FP=18 lost=0 | V3 n=17 P=0.000 R=0.000 FP=17 lost=0
+     Δ P=+0.000 R=+0.000 kept=-1 lost_rel=+0 FP=-1 | plan=1.67s score v1=16.3ms v3=24.4ms
+[D] finasteride side effects
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=['side effects'] cd=[]
+     PRE n=355 (judge-rel 27) | V1 n=171 P=0.158 R=1.000 FP=144 lost=0 | V3 n=133 P=0.196 R=0.963 FP=107 lost=1
+     Δ P=+0.038 R=-0.037 kept=-38 lost_rel=+1 FP=-37 | plan=1.71s score v1=10.7ms v3=27.4ms
+[E] finasteride dutasteride minoxidil
+     intent(llm, llm_calls=1): iv=['finasteride', 'dutasteride', 'minoxidil'] oc=[] cd=[]
+     PRE n=355 (judge-rel 128) | V1 n=217 P=0.539 R=0.914 FP=100 lost=11 | V3 n=217 P=0.539 R=0.914 FP=100 lost=11
+     Δ P=+0.000 R=+0.000 kept=+0 lost_rel=+0 FP=+0 | plan=1.71s score v1=15.2ms v3=11.9ms
+[F] does finasteride make your hair fall out at first?
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=['hair shedding'] cd=[]
+     PRE n=355 (judge-rel 16) | V1 n=108 P=0.139 R=0.938 FP=93 lost=1 | V3 n=47 P=0.319 R=0.938 FP=32 lost=1
+     Δ P=+0.180 R=+0.000 kept=-61 lost_rel=+0 FP=-61 | plan=1.54s score v1=20.9ms v3=30.5ms
+[F] since I started minoxidil my hair is falling out more
+     intent(llm, llm_calls=1): iv=['minoxidil'] oc=['hair shedding'] cd=[]
+     PRE n=355 (judge-rel 15) | V1 n=164 P=0.073 R=0.800 FP=152 lost=3 | V3 n=15 P=0.667 R=0.667 FP=5 lost=5
+     Δ P=+0.594 R=-0.133 kept=-149 lost_rel=+2 FP=-147 | plan=1.59s score v1=11.1ms v3=18.8ms
+[F] I lost my libido since taking finasteride
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=['loss of libido'] cd=[]
+     PRE n=355 (judge-rel 5) | V1 n=169 P=0.030 R=1.000 FP=164 lost=0 | V3 n=47 P=0.106 R=1.000 FP=42 lost=0
+     Δ P=+0.077 R=+0.000 kept=-122 lost_rel=+0 FP=-122 | plan=1.67s score v1=14.4ms v3=22.2ms
+[G] caduta capelli finasteride
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=[] cd=['hair loss']
+     PRE n=355 (judge-rel 18) | V1 n=108 P=0.148 R=0.889 FP=92 lost=2 | V3 n=48 P=0.333 R=0.889 FP=32 lost=2
+     Δ P=+0.185 R=+0.000 kept=-60 lost_rel=+0 FP=-60 | plan=1.66s score v1=17.9ms v3=27.4ms
+[G] la finasteride può causare depressione?
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=['depression'] cd=[]
+     PRE n=355 (judge-rel 0) | V1 n=18 P=0.000 R=0.000 FP=18 lost=0 | V3 n=17 P=0.000 R=0.000 FP=17 lost=0
+     Δ P=+0.000 R=+0.000 kept=-1 lost_rel=+0 FP=-1 | plan=1.47s score v1=15.9ms v3=24.0ms
+[G] minoxidil shedding
+     intent(llm, llm_calls=1): iv=['minoxidil'] oc=['hair shedding'] cd=[]
+     PRE n=355 (judge-rel 15) | V1 n=164 P=0.073 R=0.800 FP=152 lost=3 | V3 n=15 P=0.667 R=0.667 FP=5 lost=5
+     Δ P=+0.594 R=-0.133 kept=-149 lost_rel=+2 FP=-147 | plan=1.58s score v1=10.4ms v3=22.9ms
+[G] finasteride initial shedding
+     intent(llm, llm_calls=1): iv=['finasteride'] oc=['hair shedding'] cd=[]
+     PRE n=355 (judge-rel 16) | V1 n=108 P=0.139 R=0.938 FP=93 lost=1 | V3 n=47 P=0.319 R=0.938 FP=32 lost=1
+     Δ P=+0.180 R=+0.000 kept=-61 lost_rel=+0 FP=-61 | plan=1.55s score v1=18.5ms v3=25.8ms
+
+TOTALS: {'pre': 6035, 'v1_n': 2373, 'v3_n': 1441, 'v1_fp': 1686, 'v3_fp': 762, 'v1_lost': 40, 'v3_lost': 48} | LLM calls=17 (17.5s)
+Saved v3_ab_report.json

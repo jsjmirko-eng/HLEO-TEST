@@ -1,0 +1,46 @@
+/* Minimal HLEO UI theme overrides for Global/Scientific/RWE pages */
+:root{
+  --hleo-sci: #06b6a4; /* teal/green */
+  --hleo-rwe: #fb923c; /* orange */
+  --hleo-global: #6b73ff; /* violet/blue */
+}
+
+.page-hero { padding: 1rem; border-radius: 0.75rem; }
+.page-hero .dashboard-title { font-size: 1.25rem; margin: 0; }
+.page-hero .dashboard-subtitle { color: var(--slate-400); margin-top: .25rem; }
+
+/* Search slot which will host the shared searchCore */
+.search-slot, #globalSearchSlot, #scientificSearchSlot, #rweSearchSlot { margin-top: 0.75rem; }
+
+/* Theme accents for each mode */
+#page-global .page-hero { box-shadow: 0 1px 8px rgba(107,115,255,0.06); border: 1px solid rgba(107,115,255,0.06); }
+#page-scientific .page-hero { box-shadow: 0 1px 8px rgba(6,182,164,0.06); border: 1px solid rgba(6,182,164,0.06); }
+#page-rwe .page-hero { box-shadow: 0 1px 8px rgba(251,146,60,0.06); border: 1px solid rgba(251,146,60,0.06); }
+
+/* Sidebar responsive: keep existing behaviour but ensure menu contrasts */
+.app-sidebar { background: linear-gradient(180deg,#071026 0%,#0b1220 100%); }
+.nav-tab.active { background: rgba(255,255,255,0.03); }
+
+/* Compare panel: ensure two-column layout for assistant/compare */
+.compare-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 900px) { .compare-two-col { grid-template-columns: 1fr; } }
+
+/* Small adjustments */
+.topbar-chip.warn { background: rgba(251,146,60,0.08); color: var(--hleo-rwe); }
+.topbar-chip.info { background: rgba(6,182,164,0.06); color: var(--hleo-sci); }
+
+/* Ensure searchCore takes full width of the slot */
+#searchCore { width: 100%; }
+
+/* Meta parts spacing for card metadata */
+.meta-parts { gap: .5rem; align-items: center; }
+@media (max-width: 640px) {
+  .meta-parts { gap: .375rem; font-size: .9rem; }
+  .result-card { padding: 0.9rem; }
+  /* Force per-card extract button to break onto new line on small screens */
+  .extract-exp-btn { flex-basis: 100%; }
+}
+
+/* Extract button visual tuning */
+.extract-exp-btn { border-radius: .5rem; }
+

@@ -1,0 +1,61 @@
+
+====================================================================================================
+QUERY: finasteride shedding
+  V2 terms: iv=['5-alpha reductase inhibitor', '5ari', 'finasteride', 'fincar', 'finpecia', 'propecia']
+            oc=['alopecia', 'caduta', 'caduta capelli', 'diffuse shedding', 'diradamento capelli', 'hair fall', 'hair loss', 'hair shedding']
+            cd=[]
+  PRE : n=355 judge_relevant=7 (P=0.020)
+  V1  : n=168 P=0.042 R=1.000 {'hairlosstalk': 20, 'openfda_faers': 100, 'calvizie': 38, '
+  V2  : n= 24 P=0.292 R=1.000 {'openfda_faers': 2, 'calvizie': 8, 'hairlosstalk': 9, 'hair
+  Δ   : V2-only kept=0 (judge-relevant 0) | V1-only kept=144 (judge-relevant 0) | common=24
+    [V1_only] openfda_faers        rel=False score=0.75 'FAERS report 10003376 — Diarrhoea; Arthralgia; Nausea'
+    [V1_only] openfda_faers        rel=False score=0.75 'FAERS report 10003840 — Fluid retention; Feeling abnormal;'
+    [V1_only] openfda_faers        rel=False score=0.75 'FAERS report 10003959 — Splenomegaly; Dyspnoea; Insomnia'
+    [V1_only] openfda_faers        rel=False score=0.75 'FAERS report 10004163 — Decreased appetite; Depression'
+    [V1_only] openfda_faers        rel=False score=0.75 'FAERS report 10004188 — Cognitive disorder; Anxiety; Depre'
+    [V1_only] openfda_faers        rel=False score=0.75 'FAERS report 10004538 — Drug ineffective'
+
+====================================================================================================
+QUERY: finasteride hair shedding
+  V2 terms: iv=['5-alpha reductase inhibitor', '5ari', 'finasteride', 'fincar', 'finpecia', 'propecia']
+            oc=['alopecia', 'caduta', 'caduta capelli', 'diffuse shedding', 'diradamento capelli', 'hair fall', 'hair loss', 'hair shedding']
+            cd=[]
+  PRE : n=355 judge_relevant=9 (P=0.025)
+  V1  : n=108 P=0.083 R=1.000 {'hairlosstalk': 56, 'calvizie': 23, 'hairlossexperiences': 
+  V2  : n= 24 P=0.375 R=1.000 {'openfda_faers': 2, 'hairlosstalk': 9, 'calvizie': 8, 'hair
+  Δ   : V2-only kept=0 (judge-relevant 0) | V1-only kept=84 (judge-relevant 0) | common=24
+    [V1_only] hairlosstalk         rel=False score=0.52 'FACT!'
+    [V1_only] hairlosstalk         rel=False score=0.52 'How Does Alopecia Areata Progress To Alopecia Totalis?'
+    [V1_only] hairlossexperiences  rel=False score=0.52 'Transplant or wait for results'
+    [V1_only] hairlosstalk         rel=False score=0.48 'My results with Divine Herbal hair oil'
+    [V1_only] hairlosstalk         rel=False score=0.48 'Topical Losartan - blood pressure medication also used to '
+    [V1_only] hairlosstalk         rel=False score=0.48 'Does Alopecia Areata typically progress rapidly?'
+
+====================================================================================================
+QUERY: minoxidil hair loss
+  V2 terms: iv=['loniten', 'minoxidil', 'mintop', 'oral minoxidil', 'regaine', 'rogaine']
+            oc=['alopecia', 'caduta', 'caduta capelli', 'diffuse shedding', 'diradamento capelli', 'hair fall', 'hair loss', 'hair shedding']
+            cd=['alopecia', 'baldness', 'hair loss']
+  PRE : n=355 judge_relevant=34 (P=0.096)
+  V1  : n=106 P=0.321 R=1.000 {'hairlosstalk': 56, 'calvizie': 23, 'maladiesrares': 7, 'ha
+  V2  : n= 76 P=0.447 R=1.000 {'hairlosstalk': 48, 'hairlossexperiences': 16, 'calvizie': 
+  Δ   : V2-only kept=1 (judge-relevant 0) | V1-only kept=31 (judge-relevant 0) | common=75
+    [V2_only] hairlossexperiences  rel=False score=0.20 'Oral Minox & Finasteride timeline'
+    [V1_only] hairlossexperiences  rel=False score=0.48 'Transplant or wait for results'
+    [V1_only] calvizie             rel=False score=0.45 'Assumo Finasteride dal 2001: sta perdendo efficacia?'
+    [V1_only] calvizie             rel=False score=0.45 'Aiuto, aiutatemi perdita di capelli 34 anni Donna'
+    [V1_only] maladiesrares        rel=False score=0.45 'Pelade universelle • Pelade total et sinusite'
+    [V1_only] maladiesrares        rel=False score=0.45 'Pelade universelle • Re: Pelade femme : mes cheveux ont re'
+    [V1_only] hairlosstalk         rel=False score=0.37 'Dutasteride while my wife is pregnant?'
+
+====================================================================================================
+QUERY: finasteride dutasteride minoxidil
+  V2 terms: iv=['5-alpha reductase inhibitor', '5ari', 'avidart', 'avodart', 'dual 5-alpha reductase inhibitor', 'dual 5ari']
+            oc=[]
+            cd=[]
+  PRE : n=355 judge_relevant=0 (P=0.000)
+  V1  : n=217 P=0.000 R=0.000 {'calvizie': 64, 'hairlosstalk': 34, 'hairlossexperiences': 
+  V2  : n=217 P=0.000 R=0.000 {'calvizie': 64, 'hairlosstalk': 34, 'hairlossexperiences': 
+  Δ   : V2-only kept=0 (judge-relevant 0) | V1-only kept=0 (judge-relevant 0) | common=217
+
+Saved relevance_scorer_v2_report.json

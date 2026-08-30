@@ -1,0 +1,126 @@
+snapshot entries: 314 | sources: ['openfda_faers', 'calvizie', 'hairlosstalk', 'hairlossexperiences', 'maladiesrares'] | cap/source=15
+====================================================================================================
+QUERY: finasteride shedding
+  plan: lang=en translated='finasteride shedding' entities=[('drug', 'finasteride')]
+  expansions (16): [original] finasteride shedding; [synonym] finasteride; [synonym] propecia; [synonym] proscar; [mesh] 5-alpha Reductase Inhibitors; [neighbor] finasteride spironolactone; [neighbor] finasteride gynecomastia; [neighbor] finasteride benign prostatic hyperplasia; [neighbor] finasteride sexual dysfunction; [neighbor] finasteride post-finasteride syndrome; [neighbor] finasteride dutasteride; [neighbor] finasteride finasteride; [neighbor] finasteride androgenetic alopecia; [neighbor] finasteride erectile dysfunction; [neighbor] finasteride hair loss; [neighbor] finasteride minoxidil
+  relevance view: drug_terms=['finasteride', 'finasteride', 'propecia', 'proscar', 'finpecia', 'fincar']
+                  event_terms=[]
+  relevance filter query = 'finasteride shedding'  threshold min_score=0.20
+
+── Collector: openfda_faers ───────────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride shedding                                ' → status=no_results  raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'finasteride                                         ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride spironolactone                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride gynecomastia                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride benign prostatic hyperplasia            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride sexual dysfunction                      ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride post-finasteride syndrome               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride dutasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride finasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride androgenetic alopecia                   ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride erectile dysfunction                    ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride hair loss                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride minoxidil                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=15/15 (100%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 15 out; drop reasons: -
+
+── Collector: calvizie ────────────────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride shedding                                ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'finasteride                                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride spironolactone                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride gynecomastia                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride benign prostatic hyperplasia            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride sexual dysfunction                      ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride post-finasteride syndrome               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride dutasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride finasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride androgenetic alopecia                   ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride erectile dysfunction                    ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride hair loss                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride minoxidil                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 12 out; drop reasons: {'drug_match': 3}
+
+── Collector: hairlosstalk ────────────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride shedding                                ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'finasteride                                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride spironolactone                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride gynecomastia                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride benign prostatic hyperplasia            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride sexual dysfunction                      ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride post-finasteride syndrome               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride dutasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride finasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride androgenetic alopecia                   ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride erectile dysfunction                    ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride hair loss                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride minoxidil                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 13 out; drop reasons: {'drug_match': 2}
+
+── Collector: hairlossexperiences ─────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride shedding                                ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'finasteride                                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride spironolactone                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride gynecomastia                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride benign prostatic hyperplasia            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride sexual dysfunction                      ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride post-finasteride syndrome               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride dutasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride finasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride androgenetic alopecia                   ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride erectile dysfunction                    ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride hair loss                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride minoxidil                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 6 out; drop reasons: {'drug_match': 9}
+
+── Collector: maladiesrares ───────────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride shedding                                ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'finasteride                                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride spironolactone                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride gynecomastia                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride benign prostatic hyperplasia            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride sexual dysfunction                      ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride post-finasteride syndrome               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride dutasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride finasteride                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride androgenetic alopecia                   ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride erectile dysfunction                    ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride hair loss                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [neighbor   ] 'finasteride minoxidil                               ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 0 out; drop reasons: {'drug_match': 15}
+
+── GLOBAL STAGES ──────────────────────────────────────────────────────────────────────────────────
+  cross-source pool: 75 → deduplicate() → 75
+  relevance_filter(global): 75 in → 46 out; survivors by source: {'hairlosstalk': 13, 'openfda_faers': 15, 'calvizie': 12, 'hairlossexperiences': 6}
+
+── ITEM DIAGNOSTICS (top-5 KEPT + first 5 DROPPED) ────────────────────────────────────────────────
+ # source              title                                        text? treat? meta?  score  verdict/reason
+ 1 hairlosstalk        At what point do you give up on Finasterid   yes   -      yes    0.780  KEPT drug_match (drug=['finasteride']; tokens=2)
+ 2 hairlosstalk        Dutasteride while my wife is pregnant?       yes   -      yes    0.780  KEPT drug_match (drug=['finasteride']; tokens=2)
+ 3 openfda_faers       FAERS report 10003376 — Diarrhoea; Arthral   yes   yes    yes    0.750  KEPT drug_match (drug=['finasteride']; tokens=1)
+ 4 openfda_faers       FAERS report 10003840 — Fluid retention; F   yes   yes    yes    0.750  KEPT drug_match (drug=['finasteride']; tokens=1)
+ 5 openfda_faers       FAERS report 10003959 — Splenomegaly; Dysp   yes   yes    yes    0.750  KEPT drug_match (drug=['finasteride']; tokens=1)
+ 6 calvizie            Caretopic e applicazione al meglio           yes   -      yes    0.000  DROP drug_match (drug=[]; tokens=0)
+ 7 calvizie            Farmacisti infami?                           yes   -      yes    0.000  DROP drug_match (drug=[]; tokens=0)
+ 8 calvizie            Trichosol e assorbimento sistemico           yes   -      yes    0.000  DROP drug_match (drug=[]; tokens=0)
+ 9 hairlosstalk        Pyrilutamide (KX-826) 1.0% and 0.5%          yes   -      yes    0.000  DROP drug_match (drug=[]; tokens=0)
+10 hairlosstalk        Who has done well on spironolactone?         yes   -      yes    0.000  DROP drug_match (drug=[]; tokens=0)
+

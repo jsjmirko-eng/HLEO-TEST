@@ -1,0 +1,517 @@
+{
+  "config": {
+    "queries": [
+      "finasteride shedding",
+      "finasteride hair shedding",
+      "minoxidil hair loss",
+      "finasteride dutasteride minoxidil"
+    ],
+    "cap_per_source": 100,
+    "corpus": "cache-only rebuild of exhaustive PRE corpus (unchanged)",
+    "min_score": 0.2,
+    "v1": "production relevance_filter (unchanged)",
+    "v2": "diagnostic scorer in this file (QU-driven event side)"
+  },
+  "queries": {
+    "finasteride shedding": {
+      "v2_terms": {
+        "iv": [
+          "5-alpha reductase inhibitor",
+          "5ari",
+          "finasteride",
+          "fincar",
+          "finpecia",
+          "propecia",
+          "proscar"
+        ],
+        "oc": [
+          "alopecia",
+          "caduta",
+          "caduta capelli",
+          "diffuse shedding",
+          "diradamento capelli",
+          "hair fall",
+          "hair loss",
+          "hair shedding",
+          "hair thinning",
+          "initial shedding",
+          "perdita capelli",
+          "perdita di capelli",
+          "shedding"
+        ],
+        "cd": []
+      },
+      "pre": {
+        "n": 355,
+        "by_source": {
+          "openfda_faers": 100,
+          "calvizie": 100,
+          "hairlosstalk": 100,
+          "hairlossexperiences": 40,
+          "maladiesrares": 15
+        },
+        "judge_relevant": 7,
+        "judge_precision": 0.0197,
+        "score_range": [
+          0.0,
+          0.0
+        ]
+      },
+      "v1": {
+        "n": 168,
+        "by_source": {
+          "hairlosstalk": 20,
+          "openfda_faers": 100,
+          "calvizie": 38,
+          "hairlossexperiences": 10
+        },
+        "judge_relevant": 7,
+        "judge_precision": 0.0417,
+        "score_range": [
+          0.48,
+          0.78
+        ],
+        "judge_recall": 1.0
+      },
+      "v2": {
+        "n": 24,
+        "by_source": {
+          "openfda_faers": 2,
+          "calvizie": 8,
+          "hairlosstalk": 9,
+          "hairlossexperiences": 5
+        },
+        "judge_relevant": 7,
+        "judge_precision": 0.2917,
+        "score_range": [
+          0.62,
+          0.83
+        ],
+        "judge_recall": 1.0
+      },
+      "overlap": {
+        "common": 24,
+        "v2_only": 0,
+        "v2_only_judge_relevant": 0,
+        "v1_only": 144,
+        "v1_only_judge_relevant": 0
+      },
+      "samples": [
+        {
+          "set": "V1_only",
+          "source": "openfda_faers",
+          "judge_relevant": false,
+          "score": 0.75,
+          "title": "FAERS report 10003376 — Diarrhoea; Arthralgia; Nausea",
+          "reason": "drug_match (drug=['finasteride']; tokens=1)"
+        },
+        {
+          "set": "V1_only",
+          "source": "openfda_faers",
+          "judge_relevant": false,
+          "score": 0.75,
+          "title": "FAERS report 10003840 — Fluid retention; Feeling abnormal; Abnormal dreams; Nigh",
+          "reason": "drug_match (drug=['finasteride']; tokens=1)"
+        },
+        {
+          "set": "V1_only",
+          "source": "openfda_faers",
+          "judge_relevant": false,
+          "score": 0.75,
+          "title": "FAERS report 10003959 — Splenomegaly; Dyspnoea; Insomnia",
+          "reason": "drug_match (drug=['finasteride']; tokens=1)"
+        },
+        {
+          "set": "V1_only",
+          "source": "openfda_faers",
+          "judge_relevant": false,
+          "score": 0.75,
+          "title": "FAERS report 10004163 — Decreased appetite; Depression",
+          "reason": "drug_match (drug=['finasteride']; tokens=1)"
+        },
+        {
+          "set": "V1_only",
+          "source": "openfda_faers",
+          "judge_relevant": false,
+          "score": 0.75,
+          "title": "FAERS report 10004188 — Cognitive disorder; Anxiety; Depression; Sexual dysfunct",
+          "reason": "drug_match (drug=['finasteride']; tokens=1)"
+        },
+        {
+          "set": "V1_only",
+          "source": "openfda_faers",
+          "judge_relevant": false,
+          "score": 0.75,
+          "title": "FAERS report 10004538 — Drug ineffective",
+          "reason": "drug_match (drug=['finasteride']; tokens=1)"
+        }
+      ]
+    },
+    "finasteride hair shedding": {
+      "v2_terms": {
+        "iv": [
+          "5-alpha reductase inhibitor",
+          "5ari",
+          "finasteride",
+          "fincar",
+          "finpecia",
+          "propecia",
+          "proscar"
+        ],
+        "oc": [
+          "alopecia",
+          "caduta",
+          "caduta capelli",
+          "diffuse shedding",
+          "diradamento capelli",
+          "hair fall",
+          "hair loss",
+          "hair shedding",
+          "hair thinning",
+          "initial shedding",
+          "perdita capelli",
+          "perdita di capelli",
+          "shedding hair"
+        ],
+        "cd": []
+      },
+      "pre": {
+        "n": 355,
+        "by_source": {
+          "openfda_faers": 100,
+          "calvizie": 100,
+          "hairlosstalk": 100,
+          "hairlossexperiences": 40,
+          "maladiesrares": 15
+        },
+        "judge_relevant": 9,
+        "judge_precision": 0.0254,
+        "score_range": [
+          0.0,
+          0.0
+        ]
+      },
+      "v1": {
+        "n": 108,
+        "by_source": {
+          "hairlosstalk": 56,
+          "calvizie": 23,
+          "hairlossexperiences": 20,
+          "openfda_faers": 2,
+          "maladiesrares": 7
+        },
+        "judge_relevant": 9,
+        "judge_precision": 0.0833,
+        "score_range": [
+          0.338,
+          0.877
+        ],
+        "judge_recall": 1.0
+      },
+      "v2": {
+        "n": 24,
+        "by_source": {
+          "openfda_faers": 2,
+          "hairlosstalk": 9,
+          "calvizie": 8,
+          "hairlossexperiences": 5
+        },
+        "judge_relevant": 9,
+        "judge_precision": 0.375,
+        "score_range": [
+          0.653,
+          0.813
+        ],
+        "judge_recall": 1.0
+      },
+      "overlap": {
+        "common": 24,
+        "v2_only": 0,
+        "v2_only_judge_relevant": 0,
+        "v1_only": 84,
+        "v1_only_judge_relevant": 0
+      },
+      "samples": [
+        {
+          "set": "V1_only",
+          "source": "hairlosstalk",
+          "judge_relevant": false,
+          "score": 0.517,
+          "title": "FACT!",
+          "reason": "drug+event_match (drug=[]; event=['hair loss', 'shedding']; tokens=2)"
+        },
+        {
+          "set": "V1_only",
+          "source": "hairlosstalk",
+          "judge_relevant": false,
+          "score": 0.517,
+          "title": "How Does Alopecia Areata Progress To Alopecia Totalis?",
+          "reason": "drug+event_match (drug=[]; event=['alopecia', 'shedding']; tokens=2)"
+        },
+        {
+          "set": "V1_only",
+          "source": "hairlossexperiences",
+          "judge_relevant": false,
+          "score": 0.517,
+          "title": "Transplant or wait for results",
+          "reason": "drug+event_match (drug=[]; event=['shedding', 'thinning']; tokens=2)"
+        },
+        {
+          "set": "V1_only",
+          "source": "hairlosstalk",
+          "judge_relevant": false,
+          "score": 0.483,
+          "title": "My results with Divine Herbal hair oil",
+          "reason": "drug+event_match (drug=[]; event=['hair thinning', 'thinning']; tokens=1)"
+        },
+        {
+          "set": "V1_only",
+          "source": "hairlosstalk",
+          "judge_relevant": false,
+          "score": 0.483,
+          "title": "Topical Losartan - blood pressure medication also used to treat scars",
+          "reason": "drug+event_match (drug=[]; event=['alopecia', 'bald']; tokens=1)"
+        },
+        {
+          "set": "V1_only",
+          "source": "hairlosstalk",
+          "judge_relevant": false,
+          "score": 0.483,
+          "title": "Does Alopecia Areata typically progress rapidly?",
+          "reason": "drug+event_match (drug=[]; event=['alopecia', 'bald']; tokens=1)"
+        }
+      ]
+    },
+    "minoxidil hair loss": {
+      "v2_terms": {
+        "iv": [
+          "loniten",
+          "minoxidil",
+          "mintop",
+          "oral minoxidil",
+          "regaine",
+          "rogaine",
+          "topical minoxidil"
+        ],
+        "oc": [
+          "alopecia",
+          "caduta",
+          "caduta capelli",
+          "diffuse shedding",
+          "diradamento capelli",
+          "hair fall",
+          "hair loss",
+          "hair shedding",
+          "hair thinning",
+          "initial shedding",
+          "perdita capelli",
+          "perdita di capelli"
+        ],
+        "cd": [
+          "alopecia",
+          "baldness",
+          "hair loss"
+        ]
+      },
+      "pre": {
+        "n": 355,
+        "by_source": {
+          "openfda_faers": 100,
+          "calvizie": 100,
+          "hairlosstalk": 100,
+          "hairlossexperiences": 40,
+          "maladiesrares": 15
+        },
+        "judge_relevant": 34,
+        "judge_precision": 0.0958,
+        "score_range": [
+          0.0,
+          0.0
+        ]
+      },
+      "v1": {
+        "n": 106,
+        "by_source": {
+          "hairlosstalk": 56,
+          "calvizie": 23,
+          "maladiesrares": 7,
+          "hairlossexperiences": 20
+        },
+        "judge_relevant": 34,
+        "judge_precision": 0.3208,
+        "score_range": [
+          0.338,
+          0.933
+        ],
+        "judge_recall": 1.0
+      },
+      "v2": {
+        "n": 76,
+        "by_source": {
+          "hairlosstalk": 48,
+          "hairlossexperiences": 16,
+          "calvizie": 11,
+          "maladiesrares": 1
+        },
+        "judge_relevant": 34,
+        "judge_precision": 0.4474,
+        "score_range": [
+          0.2,
+          0.867
+        ],
+        "judge_recall": 1.0
+      },
+      "overlap": {
+        "common": 75,
+        "v2_only": 1,
+        "v2_only_judge_relevant": 0,
+        "v1_only": 31,
+        "v1_only_judge_relevant": 0
+      },
+      "samples": [
+        {
+          "set": "V2_only",
+          "source": "hairlossexperiences",
+          "judge_relevant": false,
+          "score": 0.2,
+          "title": "Oral Minox & Finasteride timeline",
+          "reason": "v2 anchor_match_only (iv=['minoxidil', 'oral minoxidil']; event_missing)"
+        },
+        {
+          "set": "V1_only",
+          "source": "hairlossexperiences",
+          "judge_relevant": false,
+          "score": 0.483,
+          "title": "Transplant or wait for results",
+          "reason": "drug+event_match (drug=[]; event=['shedding', 'thinning']; tokens=1)"
+        },
+        {
+          "set": "V1_only",
+          "source": "calvizie",
+          "judge_relevant": false,
+          "score": 0.45,
+          "title": "Assumo Finasteride dal 2001: sta perdendo efficacia?",
+          "reason": "drug+event_match (drug=[]; event=['caduta', 'caduta dei capelli', 'capelli']; to"
+        },
+        {
+          "set": "V1_only",
+          "source": "calvizie",
+          "judge_relevant": false,
+          "score": 0.45,
+          "title": "Aiuto, aiutatemi perdita di capelli 34 anni Donna",
+          "reason": "drug+event_match (drug=[]; event=['capelli', 'perdita', 'perdita di capelli']; t"
+        },
+        {
+          "set": "V1_only",
+          "source": "maladiesrares",
+          "judge_relevant": false,
+          "score": 0.45,
+          "title": "Pelade universelle • Pelade total et sinusite",
+          "reason": "drug+event_match (drug=[]; event=['cheveux', 'chute']; tokens=0)"
+        },
+        {
+          "set": "V1_only",
+          "source": "maladiesrares",
+          "judge_relevant": false,
+          "score": 0.45,
+          "title": "Pelade universelle • Re: Pelade femme : mes cheveux ont repoussé !",
+          "reason": "drug+event_match (drug=[]; event=['cheveux', 'chute']; tokens=0)"
+        },
+        {
+          "set": "V1_only",
+          "source": "hairlosstalk",
+          "judge_relevant": false,
+          "score": 0.371,
+          "title": "Dutasteride while my wife is pregnant?",
+          "reason": "drug+event_match (drug=[]; event=['shedding']; tokens=1)"
+        }
+      ]
+    },
+    "finasteride dutasteride minoxidil": {
+      "v2_terms": {
+        "iv": [
+          "5-alpha reductase inhibitor",
+          "5ari",
+          "avidart",
+          "avodart",
+          "dual 5-alpha reductase inhibitor",
+          "dual 5ari",
+          "duodart",
+          "dutasteride",
+          "finasteride",
+          "fincar",
+          "finpecia",
+          "loniten",
+          "minoxidil",
+          "mintop",
+          "oral minoxidil",
+          "propecia",
+          "proscar",
+          "regaine",
+          "rogaine",
+          "topical minoxidil"
+        ],
+        "oc": [],
+        "cd": []
+      },
+      "pre": {
+        "n": 355,
+        "by_source": {
+          "openfda_faers": 100,
+          "calvizie": 100,
+          "hairlosstalk": 100,
+          "hairlossexperiences": 40,
+          "maladiesrares": 15
+        },
+        "judge_relevant": 0,
+        "judge_precision": 0.0,
+        "score_range": [
+          0.0,
+          0.0
+        ]
+      },
+      "v1": {
+        "n": 217,
+        "by_source": {
+          "calvizie": 64,
+          "hairlosstalk": 34,
+          "hairlossexperiences": 17,
+          "openfda_faers": 100,
+          "maladiesrares": 2
+        },
+        "judge_relevant": 0,
+        "judge_precision": 0.0,
+        "score_range": [
+          0.48,
+          0.9
+        ],
+        "judge_recall": 0.0
+      },
+      "v2": {
+        "n": 217,
+        "by_source": {
+          "calvizie": 64,
+          "hairlosstalk": 34,
+          "hairlossexperiences": 17,
+          "openfda_faers": 100,
+          "maladiesrares": 2
+        },
+        "judge_relevant": 0,
+        "judge_precision": 0.0,
+        "score_range": [
+          0.44,
+          0.8
+        ],
+        "judge_recall": 0.0
+      },
+      "overlap": {
+        "common": 217,
+        "v2_only": 0,
+        "v2_only_judge_relevant": 0,
+        "v1_only": 0,
+        "v1_only_judge_relevant": 0
+      },
+      "samples": []
+    }
+  }
+}

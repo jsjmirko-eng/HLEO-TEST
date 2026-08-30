@@ -1,0 +1,2531 @@
+{
+  "config": {
+    "min_score": 0.2,
+    "flags": [
+      "HLEO_RWE_INTENT_SCORING=1",
+      "HLEO_VOCAB_ENABLED=1"
+    ],
+    "providers": "rxnorm,mesh,conceptnet,wikidata",
+    "judge": "hand-written term sets (anti-circular)",
+    "n_queries": 33
+  },
+  "queries": {
+    "finasteride shedding": {
+      "group": "A",
+      "plan_seconds": 5.75,
+      "pre_n": 355,
+      "pre_relevant": 16,
+      "llm_calls": 1,
+      "ext_vocab_calls": 19,
+      "arms": {
+        "v1": {
+          "n": 168,
+          "judge_relevant": 16,
+          "precision": 0.0952,
+          "recall": 1.0,
+          "false_positives": 152,
+          "lost_relevant": 0,
+          "ms": 11.8
+        },
+        "v3": {
+          "n": 24,
+          "judge_relevant": 15,
+          "precision": 0.625,
+          "recall": 0.9375,
+          "false_positives": 9,
+          "lost_relevant": 1,
+          "ms": 18.6
+        },
+        "v3vocab": {
+          "n": 24,
+          "judge_relevant": 15,
+          "precision": 0.625,
+          "recall": 0.9375,
+          "false_positives": 9,
+          "lost_relevant": 1,
+          "ms": 25.9
+        }
+      }
+    },
+    "finasteride hair shedding": {
+      "group": "A",
+      "plan_seconds": 1.65,
+      "pre_n": 355,
+      "pre_relevant": 16,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 108,
+          "judge_relevant": 15,
+          "precision": 0.1389,
+          "recall": 0.9375,
+          "false_positives": 93,
+          "lost_relevant": 1,
+          "ms": 17.5
+        },
+        "v3": {
+          "n": 47,
+          "judge_relevant": 15,
+          "precision": 0.3191,
+          "recall": 0.9375,
+          "false_positives": 32,
+          "lost_relevant": 1,
+          "ms": 24.6
+        },
+        "v3vocab": {
+          "n": 47,
+          "judge_relevant": 15,
+          "precision": 0.3191,
+          "recall": 0.9375,
+          "false_positives": 32,
+          "lost_relevant": 1,
+          "ms": 29.2
+        }
+      }
+    },
+    "minoxidil hair loss": {
+      "group": "A",
+      "plan_seconds": 4.9,
+      "pre_n": 355,
+      "pre_relevant": 15,
+      "llm_calls": 1,
+      "ext_vocab_calls": 21,
+      "arms": {
+        "v1": {
+          "n": 106,
+          "judge_relevant": 12,
+          "precision": 0.1132,
+          "recall": 0.8,
+          "false_positives": 94,
+          "lost_relevant": 3,
+          "ms": 17.7
+        },
+        "v3": {
+          "n": 15,
+          "judge_relevant": 10,
+          "precision": 0.6667,
+          "recall": 0.6667,
+          "false_positives": 5,
+          "lost_relevant": 5,
+          "ms": 27.1
+        },
+        "v3vocab": {
+          "n": 15,
+          "judge_relevant": 10,
+          "precision": 0.6667,
+          "recall": 0.6667,
+          "false_positives": 5,
+          "lost_relevant": 5,
+          "ms": 26.4
+        }
+      }
+    },
+    "finasteride": {
+      "group": "B",
+      "plan_seconds": 2.69,
+      "pre_n": 355,
+      "pre_relevant": 68,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 168,
+          "judge_relevant": 68,
+          "precision": 0.4048,
+          "recall": 1.0,
+          "false_positives": 100,
+          "lost_relevant": 0,
+          "ms": 10.4
+        },
+        "v3": {
+          "n": 168,
+          "judge_relevant": 68,
+          "precision": 0.4048,
+          "recall": 1.0,
+          "false_positives": 100,
+          "lost_relevant": 0,
+          "ms": 11.6
+        },
+        "v3vocab": {
+          "n": 168,
+          "judge_relevant": 68,
+          "precision": 0.4048,
+          "recall": 1.0,
+          "false_positives": 100,
+          "lost_relevant": 0,
+          "ms": 11.2
+        }
+      }
+    },
+    "minoxidil": {
+      "group": "B",
+      "plan_seconds": 1.72,
+      "pre_n": 355,
+      "pre_relevant": 76,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 164,
+          "judge_relevant": 64,
+          "precision": 0.3902,
+          "recall": 0.8421,
+          "false_positives": 100,
+          "lost_relevant": 12,
+          "ms": 10.3
+        },
+        "v3": {
+          "n": 164,
+          "judge_relevant": 64,
+          "precision": 0.3902,
+          "recall": 0.8421,
+          "false_positives": 100,
+          "lost_relevant": 12,
+          "ms": 10.1
+        },
+        "v3vocab": {
+          "n": 164,
+          "judge_relevant": 64,
+          "precision": 0.3902,
+          "recall": 0.8421,
+          "false_positives": 100,
+          "lost_relevant": 12,
+          "ms": 10.8
+        }
+      }
+    },
+    "androgenetic alopecia": {
+      "group": "C",
+      "plan_seconds": 3.58,
+      "pre_n": 355,
+      "pre_relevant": 114,
+      "llm_calls": 1,
+      "ext_vocab_calls": 11,
+      "arms": {
+        "v1": {
+          "n": 206,
+          "judge_relevant": 114,
+          "precision": 0.5534,
+          "recall": 1.0,
+          "false_positives": 92,
+          "lost_relevant": 0,
+          "ms": 18.0
+        },
+        "v3": {
+          "n": 210,
+          "judge_relevant": 114,
+          "precision": 0.5429,
+          "recall": 1.0,
+          "false_positives": 96,
+          "lost_relevant": 0,
+          "ms": 40.4
+        },
+        "v3vocab": {
+          "n": 210,
+          "judge_relevant": 114,
+          "precision": 0.5429,
+          "recall": 1.0,
+          "false_positives": 96,
+          "lost_relevant": 0,
+          "ms": 66.1
+        }
+      }
+    },
+    "hair loss": {
+      "group": "C",
+      "plan_seconds": 1.62,
+      "pre_n": 355,
+      "pre_relevant": 182,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 208,
+          "judge_relevant": 179,
+          "precision": 0.8606,
+          "recall": 0.9835,
+          "false_positives": 29,
+          "lost_relevant": 3,
+          "ms": 16.5
+        },
+        "v3": {
+          "n": 210,
+          "judge_relevant": 179,
+          "precision": 0.8524,
+          "recall": 0.9835,
+          "false_positives": 31,
+          "lost_relevant": 3,
+          "ms": 32.3
+        },
+        "v3vocab": {
+          "n": 210,
+          "judge_relevant": 179,
+          "precision": 0.8524,
+          "recall": 0.9835,
+          "false_positives": 31,
+          "lost_relevant": 3,
+          "ms": 34.8
+        }
+      }
+    },
+    "finasteride can cause depression": {
+      "group": "D",
+      "plan_seconds": 4.62,
+      "pre_n": 355,
+      "pre_relevant": 0,
+      "llm_calls": 1,
+      "ext_vocab_calls": 22,
+      "arms": {
+        "v1": {
+          "n": 18,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 18,
+          "lost_relevant": 0,
+          "ms": 16.1
+        },
+        "v3": {
+          "n": 17,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 17,
+          "lost_relevant": 0,
+          "ms": 24.5
+        },
+        "v3vocab": {
+          "n": 17,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 17,
+          "lost_relevant": 0,
+          "ms": 45.7
+        }
+      }
+    },
+    "finasteride side effects": {
+      "group": "D",
+      "plan_seconds": 4.63,
+      "pre_n": 355,
+      "pre_relevant": 27,
+      "llm_calls": 1,
+      "ext_vocab_calls": 19,
+      "arms": {
+        "v1": {
+          "n": 171,
+          "judge_relevant": 27,
+          "precision": 0.1579,
+          "recall": 1.0,
+          "false_positives": 144,
+          "lost_relevant": 0,
+          "ms": 10.9
+        },
+        "v3": {
+          "n": 133,
+          "judge_relevant": 26,
+          "precision": 0.1955,
+          "recall": 0.963,
+          "false_positives": 107,
+          "lost_relevant": 1,
+          "ms": 30.3
+        },
+        "v3vocab": {
+          "n": 133,
+          "judge_relevant": 26,
+          "precision": 0.1955,
+          "recall": 0.963,
+          "false_positives": 107,
+          "lost_relevant": 1,
+          "ms": 27.6
+        }
+      }
+    },
+    "finasteride dutasteride minoxidil": {
+      "group": "E",
+      "plan_seconds": 3.6,
+      "pre_n": 355,
+      "pre_relevant": 128,
+      "llm_calls": 1,
+      "ext_vocab_calls": 12,
+      "arms": {
+        "v1": {
+          "n": 217,
+          "judge_relevant": 117,
+          "precision": 0.5392,
+          "recall": 0.9141,
+          "false_positives": 100,
+          "lost_relevant": 11,
+          "ms": 13.3
+        },
+        "v3": {
+          "n": 217,
+          "judge_relevant": 117,
+          "precision": 0.5392,
+          "recall": 0.9141,
+          "false_positives": 100,
+          "lost_relevant": 11,
+          "ms": 12.0
+        },
+        "v3vocab": {
+          "n": 217,
+          "judge_relevant": 117,
+          "precision": 0.5392,
+          "recall": 0.9141,
+          "false_positives": 100,
+          "lost_relevant": 11,
+          "ms": 16.7
+        }
+      }
+    },
+    "does finasteride make your hair fall out at first?": {
+      "group": "F",
+      "plan_seconds": 1.94,
+      "pre_n": 355,
+      "pre_relevant": 16,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 108,
+          "judge_relevant": 15,
+          "precision": 0.1389,
+          "recall": 0.9375,
+          "false_positives": 93,
+          "lost_relevant": 1,
+          "ms": 18.8
+        },
+        "v3": {
+          "n": 47,
+          "judge_relevant": 15,
+          "precision": 0.3191,
+          "recall": 0.9375,
+          "false_positives": 32,
+          "lost_relevant": 1,
+          "ms": 26.3
+        },
+        "v3vocab": {
+          "n": 47,
+          "judge_relevant": 15,
+          "precision": 0.3191,
+          "recall": 0.9375,
+          "false_positives": 32,
+          "lost_relevant": 1,
+          "ms": 31.3
+        }
+      }
+    },
+    "since I started minoxidil my hair is falling out more": {
+      "group": "F",
+      "plan_seconds": 1.7,
+      "pre_n": 355,
+      "pre_relevant": 15,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 164,
+          "judge_relevant": 12,
+          "precision": 0.0732,
+          "recall": 0.8,
+          "false_positives": 152,
+          "lost_relevant": 3,
+          "ms": 11.0
+        },
+        "v3": {
+          "n": 15,
+          "judge_relevant": 10,
+          "precision": 0.6667,
+          "recall": 0.6667,
+          "false_positives": 5,
+          "lost_relevant": 5,
+          "ms": 20.0
+        },
+        "v3vocab": {
+          "n": 15,
+          "judge_relevant": 10,
+          "precision": 0.6667,
+          "recall": 0.6667,
+          "false_positives": 5,
+          "lost_relevant": 5,
+          "ms": 31.2
+        }
+      }
+    },
+    "I lost my libido since taking finasteride": {
+      "group": "F",
+      "plan_seconds": 3.68,
+      "pre_n": 355,
+      "pre_relevant": 5,
+      "llm_calls": 1,
+      "ext_vocab_calls": 11,
+      "arms": {
+        "v1": {
+          "n": 169,
+          "judge_relevant": 5,
+          "precision": 0.0296,
+          "recall": 1.0,
+          "false_positives": 164,
+          "lost_relevant": 0,
+          "ms": 11.0
+        },
+        "v3": {
+          "n": 47,
+          "judge_relevant": 5,
+          "precision": 0.1064,
+          "recall": 1.0,
+          "false_positives": 42,
+          "lost_relevant": 0,
+          "ms": 25.0
+        },
+        "v3vocab": {
+          "n": 47,
+          "judge_relevant": 5,
+          "precision": 0.1064,
+          "recall": 1.0,
+          "false_positives": 42,
+          "lost_relevant": 0,
+          "ms": 44.8
+        }
+      }
+    },
+    "caduta capelli finasteride": {
+      "group": "G",
+      "plan_seconds": 1.66,
+      "pre_n": 355,
+      "pre_relevant": 18,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 108,
+          "judge_relevant": 16,
+          "precision": 0.1481,
+          "recall": 0.8889,
+          "false_positives": 92,
+          "lost_relevant": 2,
+          "ms": 17.7
+        },
+        "v3": {
+          "n": 48,
+          "judge_relevant": 16,
+          "precision": 0.3333,
+          "recall": 0.8889,
+          "false_positives": 32,
+          "lost_relevant": 2,
+          "ms": 24.2
+        },
+        "v3vocab": {
+          "n": 48,
+          "judge_relevant": 16,
+          "precision": 0.3333,
+          "recall": 0.8889,
+          "false_positives": 32,
+          "lost_relevant": 2,
+          "ms": 26.5
+        }
+      }
+    },
+    "la finasteride può causare depressione?": {
+      "group": "G",
+      "plan_seconds": 1.59,
+      "pre_n": 355,
+      "pre_relevant": 0,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 18,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 18,
+          "lost_relevant": 0,
+          "ms": 16.1
+        },
+        "v3": {
+          "n": 17,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 17,
+          "lost_relevant": 0,
+          "ms": 24.9
+        },
+        "v3vocab": {
+          "n": 17,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 17,
+          "lost_relevant": 0,
+          "ms": 44.9
+        }
+      }
+    },
+    "minoxidil shedding": {
+      "group": "G",
+      "plan_seconds": 1.55,
+      "pre_n": 355,
+      "pre_relevant": 15,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 164,
+          "judge_relevant": 12,
+          "precision": 0.0732,
+          "recall": 0.8,
+          "false_positives": 152,
+          "lost_relevant": 3,
+          "ms": 10.4
+        },
+        "v3": {
+          "n": 15,
+          "judge_relevant": 10,
+          "precision": 0.6667,
+          "recall": 0.6667,
+          "false_positives": 5,
+          "lost_relevant": 5,
+          "ms": 21.7
+        },
+        "v3vocab": {
+          "n": 15,
+          "judge_relevant": 10,
+          "precision": 0.6667,
+          "recall": 0.6667,
+          "false_positives": 5,
+          "lost_relevant": 5,
+          "ms": 26.1
+        }
+      }
+    },
+    "finasteride initial shedding": {
+      "group": "G",
+      "plan_seconds": 1.52,
+      "pre_n": 355,
+      "pre_relevant": 16,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 108,
+          "judge_relevant": 15,
+          "precision": 0.1389,
+          "recall": 0.9375,
+          "false_positives": 93,
+          "lost_relevant": 1,
+          "ms": 17.5
+        },
+        "v3": {
+          "n": 47,
+          "judge_relevant": 15,
+          "precision": 0.3191,
+          "recall": 0.9375,
+          "false_positives": 32,
+          "lost_relevant": 1,
+          "ms": 24.2
+        },
+        "v3vocab": {
+          "n": 47,
+          "judge_relevant": 15,
+          "precision": 0.3191,
+          "recall": 0.9375,
+          "false_positives": 32,
+          "lost_relevant": 1,
+          "ms": 28.5
+        }
+      }
+    },
+    "caduta capelli": {
+      "group": "IT",
+      "plan_seconds": 1.42,
+      "pre_n": 355,
+      "pre_relevant": 182,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 208,
+          "judge_relevant": 179,
+          "precision": 0.8606,
+          "recall": 0.9835,
+          "false_positives": 29,
+          "lost_relevant": 3,
+          "ms": 17.6
+        },
+        "v3": {
+          "n": 210,
+          "judge_relevant": 179,
+          "precision": 0.8524,
+          "recall": 0.9835,
+          "false_positives": 31,
+          "lost_relevant": 3,
+          "ms": 32.6
+        },
+        "v3vocab": {
+          "n": 210,
+          "judge_relevant": 179,
+          "precision": 0.8524,
+          "recall": 0.9835,
+          "false_positives": 31,
+          "lost_relevant": 3,
+          "ms": 34.6
+        }
+      }
+    },
+    "mi stanno cadendo i capelli": {
+      "group": "IT",
+      "plan_seconds": 1.71,
+      "pre_n": 355,
+      "pre_relevant": 182,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 209,
+          "judge_relevant": 179,
+          "precision": 0.8565,
+          "recall": 0.9835,
+          "false_positives": 30,
+          "lost_relevant": 3,
+          "ms": 16.7
+        },
+        "v3": {
+          "n": 213,
+          "judge_relevant": 179,
+          "precision": 0.8404,
+          "recall": 0.9835,
+          "false_positives": 34,
+          "lost_relevant": 3,
+          "ms": 23.6
+        },
+        "v3vocab": {
+          "n": 213,
+          "judge_relevant": 179,
+          "precision": 0.8404,
+          "recall": 0.9835,
+          "false_positives": 34,
+          "lost_relevant": 3,
+          "ms": 25.2
+        }
+      }
+    },
+    "mi si stanno diradando i capelli": {
+      "group": "IT",
+      "plan_seconds": 3.19,
+      "pre_n": 255,
+      "pre_relevant": 82,
+      "llm_calls": 1,
+      "ext_vocab_calls": 9,
+      "arms": {
+        "v1": {
+          "n": 87,
+          "judge_relevant": 54,
+          "precision": 0.6207,
+          "recall": 0.6585,
+          "false_positives": 33,
+          "lost_relevant": 28,
+          "ms": 8.2
+        },
+        "v3": {
+          "n": 106,
+          "judge_relevant": 79,
+          "precision": 0.7453,
+          "recall": 0.9634,
+          "false_positives": 27,
+          "lost_relevant": 3,
+          "ms": 14.2
+        },
+        "v3vocab": {
+          "n": 106,
+          "judge_relevant": 79,
+          "precision": 0.7453,
+          "recall": 0.9634,
+          "false_positives": 27,
+          "lost_relevant": 3,
+          "ms": 14.1
+        }
+      }
+    },
+    "stempiatura": {
+      "group": "IT",
+      "plan_seconds": 2.03,
+      "pre_n": 255,
+      "pre_relevant": 90,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 1,
+          "judge_relevant": 1,
+          "precision": 1.0,
+          "recall": 0.0111,
+          "false_positives": 0,
+          "lost_relevant": 89,
+          "ms": 7.8
+        },
+        "v3": {
+          "n": 110,
+          "judge_relevant": 81,
+          "precision": 0.7364,
+          "recall": 0.9,
+          "false_positives": 29,
+          "lost_relevant": 9,
+          "ms": 26.9
+        },
+        "v3vocab": {
+          "n": 110,
+          "judge_relevant": 81,
+          "precision": 0.7364,
+          "recall": 0.9,
+          "false_positives": 29,
+          "lost_relevant": 9,
+          "ms": 29.4
+        }
+      }
+    },
+    "perdo un sacco di capelli": {
+      "group": "IT",
+      "plan_seconds": 1.58,
+      "pre_n": 255,
+      "pre_relevant": 82,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 7,
+          "judge_relevant": 6,
+          "precision": 0.8571,
+          "recall": 0.0732,
+          "false_positives": 1,
+          "lost_relevant": 76,
+          "ms": 8.2
+        },
+        "v3": {
+          "n": 111,
+          "judge_relevant": 79,
+          "precision": 0.7117,
+          "recall": 0.9634,
+          "false_positives": 32,
+          "lost_relevant": 3,
+          "ms": 22.6
+        },
+        "v3vocab": {
+          "n": 111,
+          "judge_relevant": 79,
+          "precision": 0.7117,
+          "recall": 0.9634,
+          "false_positives": 32,
+          "lost_relevant": 3,
+          "ms": 20.4
+        }
+      }
+    },
+    "hair fall": {
+      "group": "EN",
+      "plan_seconds": 1.54,
+      "pre_n": 355,
+      "pre_relevant": 182,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 206,
+          "judge_relevant": 179,
+          "precision": 0.8689,
+          "recall": 0.9835,
+          "false_positives": 27,
+          "lost_relevant": 3,
+          "ms": 16.8
+        },
+        "v3": {
+          "n": 210,
+          "judge_relevant": 179,
+          "precision": 0.8524,
+          "recall": 0.9835,
+          "false_positives": 31,
+          "lost_relevant": 3,
+          "ms": 24.5
+        },
+        "v3vocab": {
+          "n": 210,
+          "judge_relevant": 179,
+          "precision": 0.8524,
+          "recall": 0.9835,
+          "false_positives": 31,
+          "lost_relevant": 3,
+          "ms": 25.2
+        }
+      }
+    },
+    "hair thinning": {
+      "group": "EN",
+      "plan_seconds": 1.48,
+      "pre_n": 355,
+      "pre_relevant": 182,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 206,
+          "judge_relevant": 179,
+          "precision": 0.8689,
+          "recall": 0.9835,
+          "false_positives": 27,
+          "lost_relevant": 3,
+          "ms": 17.7
+        },
+        "v3": {
+          "n": 210,
+          "judge_relevant": 179,
+          "precision": 0.8524,
+          "recall": 0.9835,
+          "false_positives": 31,
+          "lost_relevant": 3,
+          "ms": 24.2
+        },
+        "v3vocab": {
+          "n": 210,
+          "judge_relevant": 179,
+          "precision": 0.8524,
+          "recall": 0.9835,
+          "false_positives": 31,
+          "lost_relevant": 3,
+          "ms": 26.1
+        }
+      }
+    },
+    "minox": {
+      "group": "AB",
+      "plan_seconds": 1.62,
+      "pre_n": 255,
+      "pre_relevant": 76,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 17,
+          "judge_relevant": 17,
+          "precision": 1.0,
+          "recall": 0.2237,
+          "false_positives": 0,
+          "lost_relevant": 59,
+          "ms": 8.1
+        },
+        "v3": {
+          "n": 74,
+          "judge_relevant": 74,
+          "precision": 1.0,
+          "recall": 0.9737,
+          "false_positives": 0,
+          "lost_relevant": 2,
+          "ms": 8.8
+        },
+        "v3vocab": {
+          "n": 74,
+          "judge_relevant": 74,
+          "precision": 1.0,
+          "recall": 0.9737,
+          "false_positives": 0,
+          "lost_relevant": 2,
+          "ms": 9.6
+        }
+      }
+    },
+    "dut": {
+      "group": "AB",
+      "plan_seconds": 1.71,
+      "pre_n": 255,
+      "pre_relevant": 32,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 0,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 0,
+          "lost_relevant": 32,
+          "ms": 7.8
+        },
+        "v3": {
+          "n": 0,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 0,
+          "lost_relevant": 32,
+          "ms": 7.7
+        },
+        "v3vocab": {
+          "n": 0,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 0,
+          "lost_relevant": 32,
+          "ms": 7.6
+        }
+      }
+    },
+    "fin": {
+      "group": "AB",
+      "plan_seconds": 1.53,
+      "pre_n": 355,
+      "pre_relevant": 69,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 102,
+          "judge_relevant": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "false_positives": 102,
+          "lost_relevant": 69,
+          "ms": 10.0
+        },
+        "v3": {
+          "n": 171,
+          "judge_relevant": 69,
+          "precision": 0.4035,
+          "recall": 1.0,
+          "false_positives": 102,
+          "lost_relevant": 0,
+          "ms": 11.8
+        },
+        "v3vocab": {
+          "n": 171,
+          "judge_relevant": 69,
+          "precision": 0.4035,
+          "recall": 1.0,
+          "false_positives": 102,
+          "lost_relevant": 0,
+          "ms": 12.7
+        }
+      }
+    },
+    "rogaine": {
+      "group": "AB",
+      "plan_seconds": 1.7,
+      "pre_n": 355,
+      "pre_relevant": 76,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 164,
+          "judge_relevant": 64,
+          "precision": 0.3902,
+          "recall": 0.8421,
+          "false_positives": 100,
+          "lost_relevant": 12,
+          "ms": 10.5
+        },
+        "v3": {
+          "n": 164,
+          "judge_relevant": 64,
+          "precision": 0.3902,
+          "recall": 0.8421,
+          "false_positives": 100,
+          "lost_relevant": 12,
+          "ms": 10.2
+        },
+        "v3vocab": {
+          "n": 164,
+          "judge_relevant": 64,
+          "precision": 0.3902,
+          "recall": 0.8421,
+          "false_positives": 100,
+          "lost_relevant": 12,
+          "ms": 11.0
+        }
+      }
+    },
+    "shedding like crazy": {
+      "group": "SL",
+      "plan_seconds": 1.55,
+      "pre_n": 255,
+      "pre_relevant": 15,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 3,
+          "judge_relevant": 3,
+          "precision": 1.0,
+          "recall": 0.2,
+          "false_positives": 0,
+          "lost_relevant": 12,
+          "ms": 8.4
+        },
+        "v3": {
+          "n": 106,
+          "judge_relevant": 14,
+          "precision": 0.1321,
+          "recall": 0.9333,
+          "false_positives": 92,
+          "lost_relevant": 1,
+          "ms": 14.3
+        },
+        "v3vocab": {
+          "n": 106,
+          "judge_relevant": 14,
+          "precision": 0.1321,
+          "recall": 0.9333,
+          "false_positives": 92,
+          "lost_relevant": 1,
+          "ms": 19.4
+        }
+      }
+    },
+    "my hairline keeps receding": {
+      "group": "SL",
+      "plan_seconds": 1.47,
+      "pre_n": 255,
+      "pre_relevant": 90,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 2,
+          "judge_relevant": 2,
+          "precision": 1.0,
+          "recall": 0.0222,
+          "false_positives": 0,
+          "lost_relevant": 88,
+          "ms": 8.2
+        },
+        "v3": {
+          "n": 110,
+          "judge_relevant": 81,
+          "precision": 0.7364,
+          "recall": 0.9,
+          "false_positives": 29,
+          "lost_relevant": 9,
+          "ms": 19.1
+        },
+        "v3vocab": {
+          "n": 110,
+          "judge_relevant": 81,
+          "precision": 0.7364,
+          "recall": 0.9,
+          "false_positives": 29,
+          "lost_relevant": 9,
+          "ms": 20.8
+        }
+      }
+    },
+    "my crown is thinning bad": {
+      "group": "SL",
+      "plan_seconds": 1.49,
+      "pre_n": 255,
+      "pre_relevant": 87,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 4,
+          "judge_relevant": 4,
+          "precision": 1.0,
+          "recall": 0.046,
+          "false_positives": 0,
+          "lost_relevant": 83,
+          "ms": 8.5
+        },
+        "v3": {
+          "n": 110,
+          "judge_relevant": 81,
+          "precision": 0.7364,
+          "recall": 0.931,
+          "false_positives": 29,
+          "lost_relevant": 6,
+          "ms": 19.6
+        },
+        "v3vocab": {
+          "n": 110,
+          "judge_relevant": 81,
+          "precision": 0.7364,
+          "recall": 0.931,
+          "false_positives": 29,
+          "lost_relevant": 6,
+          "ms": 20.3
+        }
+      }
+    },
+    "losing hair on fin": {
+      "group": "SL",
+      "plan_seconds": 1.78,
+      "pre_n": 255,
+      "pre_relevant": 16,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 10,
+          "judge_relevant": 1,
+          "precision": 0.1,
+          "recall": 0.0625,
+          "false_positives": 9,
+          "lost_relevant": 15,
+          "ms": 8.1
+        },
+        "v3": {
+          "n": 41,
+          "judge_relevant": 15,
+          "precision": 0.3659,
+          "recall": 0.9375,
+          "false_positives": 26,
+          "lost_relevant": 1,
+          "ms": 20.3
+        },
+        "v3vocab": {
+          "n": 41,
+          "judge_relevant": 15,
+          "precision": 0.3659,
+          "recall": 0.9375,
+          "false_positives": 26,
+          "lost_relevant": 1,
+          "ms": 22.0
+        }
+      }
+    },
+    "minox not working": {
+      "group": "SL",
+      "plan_seconds": 1.77,
+      "pre_n": 255,
+      "pre_relevant": 76,
+      "llm_calls": 1,
+      "ext_vocab_calls": 0,
+      "arms": {
+        "v1": {
+          "n": 4,
+          "judge_relevant": 3,
+          "precision": 0.75,
+          "recall": 0.0395,
+          "false_positives": 1,
+          "lost_relevant": 73,
+          "ms": 7.9
+        },
+        "v3": {
+          "n": 64,
+          "judge_relevant": 64,
+          "precision": 1.0,
+          "recall": 0.8421,
+          "false_positives": 0,
+          "lost_relevant": 12,
+          "ms": 9.5
+        },
+        "v3vocab": {
+          "n": 64,
+          "judge_relevant": 64,
+          "precision": 1.0,
+          "recall": 0.8421,
+          "false_positives": 0,
+          "lost_relevant": 12,
+          "ms": 9.9
+        }
+      }
+    }
+  },
+  "probe": {
+    "terms": {
+      "finasteride (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 0,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "exact",
+            "concept": "25025",
+            "preferred": "finasteride",
+            "synonyms": [
+              "Proscar",
+              "Propecia",
+              "Entadfi",
+              "finasteride 5 MG Oral Tablet [Proscar]"
+            ],
+            "confidence": 1.0,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "exact",
+            "concept": "D018120",
+            "preferred": "Finasteride",
+            "synonyms": [],
+            "confidence": 1.0,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q424167",
+            "preferred": "finasteride",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q66346582",
+            "preferred": "Finasteride (MK-0906) and Male Breast Cancer - A Register-Based Nested Case-Control Study (MK-0906-162/2003.021).",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q40384709",
+            "preferred": "Finasteride",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q136723149",
+            "preferred": "Finasteride/latanoprost/minoxidil",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q110204993",
+            "preferred": "finasteride/tadalafil",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          }
+        ]
+      },
+      "minoxidil (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 0,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "exact",
+            "concept": "1651695",
+            "preferred": "minoxidil",
+            "synonyms": [],
+            "confidence": 1.0,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "exact",
+            "concept": "6984",
+            "preferred": "minoxidil",
+            "synonyms": [
+              "Rogaine",
+              "Regoxidine",
+              "minoxidil 20 MG/ML Topical Solution [Rogaine]",
+              "minoxidil 50 MG/ML Topical Foam [Regoxidine]"
+            ],
+            "confidence": 1.0,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "exact",
+            "concept": "D008914",
+            "preferred": "Minoxidil",
+            "synonyms": [
+              "Regaine"
+            ],
+            "confidence": 1.0,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q424165",
+            "preferred": "minoxidil",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q27254739",
+            "preferred": "minoxidil sulfate ester",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q112295213",
+            "preferred": "Minoxidil for Male Pattern Baldness: Lower Concentrations More Effective?",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q28561784",
+            "preferred": "Sulfotransferase family 1A member 1",
+            "synonyms": [
+              "minoxidil sulfotransferase"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q40083483",
+            "preferred": "Minoxidil",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          }
+        ]
+      },
+      "dutasteride (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 0,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "exact",
+            "concept": "228790",
+            "preferred": "dutasteride",
+            "synonyms": [
+              "Avodart",
+              "Jalyn",
+              "dutasteride 0.5 MG Oral Capsule [Avodart]",
+              "dutasteride 0.5 MG / tamsulosin hydrochloride 0.4 MG Oral Capsule [Jalyn]"
+            ],
+            "confidence": 1.0,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "exact",
+            "concept": "D000068538",
+            "preferred": "Dutasteride",
+            "synonyms": [
+              "GG745",
+              "GG-745"
+            ],
+            "confidence": 1.0,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q424760",
+            "preferred": "dutasteride",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q72444114",
+            "preferred": "4-aza-5a-androstan-1-ene-3-one-17b-carboxylic acid",
+            "synonyms": [
+              "dutasteride acid"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q74282931",
+            "preferred": "Dutasteride Treatment for Reducing Heavy Drinking in AUD: Predictors of Efficacy",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q35562606",
+            "preferred": "Dutasteride",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q63341069",
+            "preferred": "Dutasteride Versus Placebo and Finasteride in Men With Androgenetic Alopecia",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          }
+        ]
+      },
+      "rogaine (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 6,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "synonym",
+            "concept": "225702",
+            "preferred": "minoxidil",
+            "synonyms": [
+              "Rogaine",
+              "minoxidil 20 MG/ML Topical Solution [Rogaine]",
+              "minoxidil 50 MG/ML Topical Foam [Rogaine]",
+              "minoxidil 50 MG/ML Topical Solution [Rogaine]"
+            ],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q424165",
+            "preferred": "minoxidil",
+            "synonyms": [
+              "Rogaine®"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q269393",
+            "preferred": "rogaining",
+            "synonyms": [
+              "Rogaine"
+            ],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q68964091",
+            "preferred": "Rogaine (topical minoxidil, 2%) in the management of male pattern baldness and alopecia areata. Proceedings of a symposium. Palm Beach, FL, May 17, 1986",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q8145601",
+            "preferred": "Rogajny",
+            "synonyms": [
+              "Rogainen"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q7357648",
+            "preferred": "Rogaine",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          }
+        ]
+      },
+      "minox (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 15,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1318233",
+            "preferred": "Vinca minor extract",
+            "synonyms": [],
+            "confidence": 0.067,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1333267",
+            "preferred": "Lemna minor extract",
+            "synonyms": [],
+            "confidence": 0.067,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1098232",
+            "preferred": "littleseed canary grass pollen extract",
+            "synonyms": [],
+            "confidence": 0.067,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1307575",
+            "preferred": "Sanguisorba minor root extract",
+            "synonyms": [],
+            "confidence": 0.059,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "normalized",
+            "concept": "D008914",
+            "preferred": "Minoxidil",
+            "synonyms": [
+              "Regaine"
+            ],
+            "confidence": 0.7,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q746925",
+            "preferred": "4639 Minox",
+            "synonyms": [
+              "Minox"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q688121",
+            "preferred": "Minox",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q110190922",
+            "preferred": "Minox (Pauly-Wissowa)",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q424165",
+            "preferred": "minoxidil",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q1937528",
+            "preferred": "Minox 35",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          }
+        ]
+      },
+      "fin (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 11,
+        "matches": [
+          {
+            "provider": "mesh",
+            "kind": "normalized",
+            "concept": "D050617",
+            "preferred": "Fin Whale",
+            "synonyms": [],
+            "confidence": 0.7,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q33",
+            "preferred": "Finland",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q1412",
+            "preferred": "Finnish",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q201821",
+            "preferred": "Finnair",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q1416890",
+            "preferred": "Fine Arts Museums of San Francisco",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q21416441",
+            "preferred": "Fin",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          }
+        ]
+      },
+      "dut (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 6,
+        "matches": [
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q7411",
+            "preferred": "Dutch",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q10000",
+            "preferred": "Dutch Wikipedia",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q1477368",
+            "preferred": "Dalian University of Technology",
+            "synonyms": [
+              "DUT"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q6086806",
+            "preferred": "Dut",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q115148",
+            "preferred": "Dutchess County",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          }
+        ]
+      },
+      "hair loss (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 0,
+        "matches": [
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q181391",
+            "preferred": "bald head",
+            "synonyms": [
+              "hair loss"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q2697787",
+            "preferred": "alopecia",
+            "synonyms": [
+              "hair loss"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q140603059",
+            "preferred": "Hair loss",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q18251216",
+            "preferred": "hl",
+            "synonyms": [
+              "hair loss"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q1947741",
+            "preferred": "hair loss medication",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          }
+        ]
+      },
+      "hair shedding (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 0,
+        "matches": [
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q53012866",
+            "preferred": "Hair shedding in women: how much is too much?",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q84869114",
+            "preferred": "Hair shedding in women",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q67266061",
+            "preferred": "Hair shedding and replacement in domestic mammals.--3. Hair shedding and replacement in sheep and goat (author's transl)",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          }
+        ]
+      },
+      "alopecia (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 20,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "213178",
+            "preferred": "finasteride",
+            "synonyms": [
+              "Propecia",
+              "finasteride 1 MG Oral Tablet [Propecia]",
+              "finasteride 1 MG Oral Tablet"
+            ],
+            "confidence": 0.116,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "213178",
+            "preferred": "finasteride",
+            "synonyms": [
+              "Propecia",
+              "finasteride 1 MG Oral Tablet [Propecia]",
+              "finasteride 1 MG Oral Tablet"
+            ],
+            "confidence": 0.116,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "219462",
+            "preferred": "finasteride",
+            "synonyms": [
+              "Propecia",
+              "finasteride 1 MG Oral Tablet [Propecia]",
+              "finasteride 1 MG Oral Tablet"
+            ],
+            "confidence": 0.086,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "219462",
+            "preferred": "finasteride",
+            "synonyms": [
+              "Propecia",
+              "finasteride 1 MG Oral Tablet [Propecia]",
+              "finasteride 1 MG Oral Tablet"
+            ],
+            "confidence": 0.086,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1181830",
+            "preferred": "finasteride",
+            "synonyms": [
+              "Propecia",
+              "finasteride 1 MG Oral Tablet [Propecia]",
+              "finasteride 1 MG Oral Tablet"
+            ],
+            "confidence": 0.084,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "exact",
+            "concept": "D000505",
+            "preferred": "Alopecia",
+            "synonyms": [
+              "Androgenic Alopecia",
+              "Alopecia, Androgenetic",
+              "Pattern Baldness",
+              "Alopecia Cicatrisata"
+            ],
+            "confidence": 1.0,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "normalized",
+            "concept": "D000506",
+            "preferred": "Alopecia Areata",
+            "synonyms": [],
+            "confidence": 0.7,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q2697787",
+            "preferred": "alopecia",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q5075435",
+            "preferred": "alopecia areata",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q2276095",
+            "preferred": "androgenic alopecia",
+            "synonyms": [
+              "alopecia androgenetica"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q4734616",
+            "preferred": "alopecia universalis",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q4734609",
+            "preferred": "follicular mucinosis",
+            "synonyms": [
+              "Alopecia mucinosa"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          }
+        ]
+      },
+      "side effects (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 0,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1357997",
+            "preferred": "cured fat, pork side bacon",
+            "synonyms": [],
+            "confidence": 0.103,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "normalized",
+            "concept": "D064420",
+            "preferred": "Drug-Related Side Effects and Adverse Reactions",
+            "synonyms": [
+              "Toxicity, Drug"
+            ],
+            "confidence": 0.7,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "normalized",
+            "concept": "D065606",
+            "preferred": "Metabolic Side Effects of Drugs and Substances",
+            "synonyms": [
+              "Substance Effects on Metabolism",
+              "Drug Effects on Metabolism"
+            ],
+            "confidence": 0.7,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q28451792",
+            "preferred": "Side Effects",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q60380330",
+            "preferred": "Side Effects",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q139591300",
+            "preferred": "SIDE EFFECTS",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q334763",
+            "preferred": "Side Effects",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q45959",
+            "preferred": "adverse drug reaction",
+            "synonyms": [
+              "side effects of drugs"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          }
+        ]
+      },
+      "hair fall (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 9,
+        "matches": [
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q2697787",
+            "preferred": "alopecia",
+            "synonyms": [
+              "hair fall"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q64217035",
+            "preferred": "Hair Fall in Patients on Low Dose Methotrexate",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q134318219",
+            "preferred": "Hair Fall",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          }
+        ]
+      },
+      "hair thinning (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 0,
+        "matches": []
+      },
+      "ferritin (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 15,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "405075",
+            "preferred": "ferrous fumarate",
+            "synonyms": [
+              "Ferrimin 150",
+              "ferrous fumarate 456 MG Oral Tablet [Ferrimin 150]",
+              "ferrous fumarate 456 MG Oral Tablet"
+            ],
+            "confidence": 0.092,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "405075",
+            "preferred": "ferrous fumarate",
+            "synonyms": [
+              "Ferrimin 150",
+              "ferrous fumarate 456 MG Oral Tablet [Ferrimin 150]",
+              "ferrous fumarate 456 MG Oral Tablet"
+            ],
+            "confidence": 0.092,
+            "lang": "en"
+          },
+          {
+            "provider": "mesh",
+            "kind": "normalized",
+            "concept": "D005293",
+            "preferred": "Ferritins",
+            "synonyms": [
+              "Isoferritin, Basic"
+            ],
+            "confidence": 0.7,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q22327449",
+            "preferred": "ferritin complex",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q24726490",
+            "preferred": "ferritin",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q24785822",
+            "preferred": "Ferritin-like superfamily",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q24777037",
+            "preferred": "Ferritin-like",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q24744913",
+            "preferred": "ferritin/DPS protein domain",
+            "synonyms": [],
+            "confidence": 0.5,
+            "lang": "en"
+          }
+        ]
+      },
+      "DHT (en)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 11,
+        "matches": [
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q411054",
+            "preferred": "dihydrotestosterone",
+            "synonyms": [
+              "DHT"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q863506",
+            "preferred": "distributed hash table",
+            "synonyms": [
+              "DHT"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "exact",
+            "concept": "Q1755076",
+            "preferred": "DHT",
+            "synonyms": [],
+            "confidence": 0.9,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q31686490",
+            "preferred": "androstanolone",
+            "synonyms": [
+              "DHT"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q17570463",
+            "preferred": "40 George Square",
+            "synonyms": [
+              "DHT"
+            ],
+            "confidence": 0.6,
+            "lang": "en"
+          }
+        ]
+      },
+      "caduta capelli (it)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 9,
+        "matches": [
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1306162",
+            "preferred": "Camellia oil",
+            "synonyms": [],
+            "confidence": 0.087,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1356680",
+            "preferred": "Camellia sinensis whole extract",
+            "synonyms": [],
+            "confidence": 0.082,
+            "lang": "en"
+          },
+          {
+            "provider": "rxnorm",
+            "kind": "normalized",
+            "concept": "1305549",
+            "preferred": "Camellia oleifera leaf extract",
+            "synonyms": [],
+            "confidence": 0.077,
+            "lang": "en"
+          }
+        ]
+      },
+      "stempiatura (it)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 6,
+        "matches": [
+          {
+            "provider": "wikidata",
+            "kind": "concept",
+            "concept": "Q20820060",
+            "preferred": "Widow's peak",
+            "synonyms": [
+              "stempiatura"
+            ],
+            "confidence": 0.5,
+            "lang": "it"
+          }
+        ]
+      },
+      "mi stanno cadendo i capelli (it)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 11,
+        "matches": []
+      },
+      "perdita di capelli (it)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 8,
+        "matches": []
+      },
+      "pelade (fr)": {
+        "queried": [
+          "rxnorm",
+          "mesh",
+          "conceptnet",
+          "wikidata"
+        ],
+        "failed": [],
+        "ext_calls": 6,
+        "matches": [
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q5075435",
+            "preferred": "alopecia areata",
+            "synonyms": [
+              "pelade"
+            ],
+            "confidence": 0.6,
+            "lang": "fr"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q1435530",
+            "preferred": "folliculitis decalvans",
+            "synonyms": [
+              "pelade décalvante"
+            ],
+            "confidence": 0.6,
+            "lang": "fr"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q11288",
+            "preferred": "web server",
+            "synonyms": [
+              "peladen web"
+            ],
+            "confidence": 0.6,
+            "lang": "fr"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q2697787",
+            "preferred": "alopecia",
+            "synonyms": [
+              "peladera"
+            ],
+            "confidence": 0.6,
+            "lang": "fr"
+          },
+          {
+            "provider": "wikidata",
+            "kind": "abbreviation",
+            "concept": "Q1744674",
+            "preferred": "Ophiasis",
+            "synonyms": [
+              "pelade ophiasique"
+            ],
+            "confidence": 0.6,
+            "lang": "fr"
+          }
+        ]
+      }
+    },
+    "cache": {
+      "second_pass_ext_calls": 0,
+      "cache_entries": 92
+    }
+  },
+  "totals": {
+    "v1_n": 3603,
+    "v1_fp": 2045,
+    "v1_lost": 688,
+    "v3_n": 3451,
+    "v3_fp": 1355,
+    "v3_lost": 150,
+    "v3vocab_n": 3451,
+    "v3vocab_fp": 1355,
+    "v3vocab_lost": 150,
+    "pre": 10715,
+    "pre_rel": 2246
+  },
+  "llm": {
+    "calls": 33,
+    "seconds": 36.963470697402954
+  },
+  "external_vocab_calls": 257
+}

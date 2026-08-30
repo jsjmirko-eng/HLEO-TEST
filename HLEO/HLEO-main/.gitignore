@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+.env
+.agents_tmp/
+
+# Local test sqlite DB
+test_hleo.db
+# Local temporary test DBs and agent audit artifacts
+test_hleo_*.db
+.agent_*.json
+
+# Obsolete backup archives (historical copies, never part of the distribution)
+HLEO-ultima-versione.zip
+zipFile.zip
+*.zip
+
+# Python virtualenv created by scripts/install.sh
+.venv/
+
+# Runtime artifacts (pidfile/logs) created by scripts/
+.hleo/
+
+# Local SQLite database created by scripts/setup.sh / bootloader
+hleo.db
+
+

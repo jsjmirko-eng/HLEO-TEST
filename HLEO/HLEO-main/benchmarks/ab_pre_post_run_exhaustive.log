@@ -1,0 +1,55 @@
+nohup: ignoring input
+
+================================================================================================
+QUERY: finasteride shedding
+  CURRENT  PRE : n=355 {'openfda_faers': 100, 'calvizie': 100, 'hairlosstalk': 100, 'hairloss
+  CURRENT  POST: n=168 {'hairlosstalk': 20, 'openfda_faers': 100, 'calvizie': 38, 'hairlossex
+           judge P(pre)=0.020 → P(post)=0.042 | R(pre)=0.020 → R(post)=0.042
+           contributions: {'synonym': 100, 'original': 255}  fetches: {'cached': 7, 'live': 73}
+  QU       PRE : n=355 {'openfda_faers': 100, 'calvizie': 100, 'hairlosstalk': 100, 'hairloss
+  QU       POST: n=168 {'hairlosstalk': 20, 'openfda_faers': 100, 'calvizie': 38, 'hairlossex
+           judge P(pre)=0.020 → P(post)=0.042 | R(pre)=0.020 → R(post)=0.042
+           contributions: {'synonym': 100, 'original': 255}  fetches: {'cached': 57, 'live': 23}
+           QU-matched items: pre=0 kept_post=0 dropped=0 reasons={}
+  Δ PRE-stage advantage of QU: 0 items | kept POST: 0 | filter killed 187 of QU's PRE corpus
+
+================================================================================================
+QUERY: finasteride hair shedding
+  CURRENT  PRE : n=355 {'openfda_faers': 100, 'calvizie': 100, 'hairlosstalk': 100, 'hairloss
+  CURRENT  POST: n=108 {'hairlosstalk': 56, 'calvizie': 23, 'hairlossexperiences': 20, 'openf
+           judge P(pre)=0.025 → P(post)=0.083 | R(pre)=0.025 → R(post)=0.083
+           contributions: {'synonym': 199, 'mesh': 100, 'original': 255}  fetches: {'cached': 41, 'live': 39}
+  QU       PRE : n=355 {'openfda_faers': 100, 'calvizie': 100, 'hairlosstalk': 100, 'hairloss
+  QU       POST: n=108 {'hairlosstalk': 56, 'calvizie': 23, 'hairlossexperiences': 20, 'openf
+           judge P(pre)=0.025 → P(post)=0.083 | R(pre)=0.025 → R(post)=0.083
+           contributions: {'synonym': 199, 'mesh': 100, 'original': 255}  fetches: {'cached': 61, 'live': 19}
+           QU-matched items: pre=0 kept_post=0 dropped=0 reasons={}
+  Δ PRE-stage advantage of QU: 0 items | kept POST: 0 | filter killed 247 of QU's PRE corpus
+
+================================================================================================
+QUERY: minoxidil hair loss
+  CURRENT  PRE : n=355 {'openfda_faers': 100, 'calvizie': 100, 'hairlosstalk': 100, 'hairloss
+  CURRENT  POST: n=106 {'hairlosstalk': 56, 'calvizie': 23, 'maladiesrares': 7, 'hairlossexpe
+           judge P(pre)=0.096 → P(post)=0.321 | R(pre)=0.022 → R(post)=0.075
+           contributions: {'synonym': 200, 'mesh': 100, 'original': 255}  fetches: {'cached': 31, 'live': 49}
+  QU       PRE : n=355 {'openfda_faers': 100, 'calvizie': 100, 'hairlosstalk': 100, 'hairloss
+  QU       POST: n=106 {'hairlosstalk': 56, 'calvizie': 23, 'maladiesrares': 7, 'hairlossexpe
+           judge P(pre)=0.096 → P(post)=0.321 | R(pre)=0.022 → R(post)=0.075
+           contributions: {'synonym': 200, 'mesh': 100, 'qu': 8, 'original': 255}  fetches: {'cached': 60, 'live': 20}
+           QU-matched items: pre=0 kept_post=0 dropped=0 reasons={}
+  Δ PRE-stage advantage of QU: 0 items | kept POST: 0 | filter killed 249 of QU's PRE corpus
+
+================================================================================================
+QUERY: finasteride dutasteride minoxidil
+  CURRENT  PRE : n=355 {'openfda_faers': 100, 'calvizie': 100, 'hairlosstalk': 100, 'hairloss
+  CURRENT  POST: n=217 {'calvizie': 64, 'hairlosstalk': 34, 'hairlossexperiences': 17, 'openf
+           judge P(pre)=0.000 → P(post)=0.000 | R(pre)=0.000 → R(post)=0.000
+           contributions: {'synonym': 299, 'original': 255}  fetches: {'cached': 55, 'live': 25}
+  QU       PRE : n=355 {'openfda_faers': 100, 'calvizie': 100, 'hairlosstalk': 100, 'hairloss
+  QU       POST: n=217 {'calvizie': 64, 'hairlosstalk': 34, 'hairlossexperiences': 17, 'openf
+           judge P(pre)=0.000 → P(post)=0.000 | R(pre)=0.000 → R(post)=0.000
+           contributions: {'synonym': 299, 'original': 255}  fetches: {'cached': 66, 'live': 14}
+           QU-matched items: pre=0 kept_post=0 dropped=0 reasons={}
+  Δ PRE-stage advantage of QU: 0 items | kept POST: 0 | filter killed 138 of QU's PRE corpus
+
+Saved ab_pre_post_report.json | snapshot entries now: 578

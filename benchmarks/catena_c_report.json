@@ -1,0 +1,120 @@
+{
+  "arms": {
+    "v3": {
+      "per_query": [
+        {
+          "query": "finasteride shedding",
+          "raw_candidates": 54,
+          "retrieval_gain_items": 0,
+          "deduped": 54,
+          "kept": 54,
+          "kept_relevant": 54,
+          "false_positives": 0,
+          "top30_relevant": 30,
+          "expanded_queries": 16,
+          "collector_calls": 8,
+          "latency_s": 2.454
+        },
+        {
+          "query": "minoxidil erythema",
+          "raw_candidates": 54,
+          "retrieval_gain_items": 0,
+          "deduped": 54,
+          "kept": 54,
+          "kept_relevant": 54,
+          "false_positives": 0,
+          "top30_relevant": 30,
+          "expanded_queries": 12,
+          "collector_calls": 8,
+          "latency_s": 1.888
+        },
+        {
+          "query": "dutasteride brain fog",
+          "raw_candidates": 54,
+          "retrieval_gain_items": 0,
+          "deduped": 54,
+          "kept": 54,
+          "kept_relevant": 54,
+          "false_positives": 0,
+          "top30_relevant": 30,
+          "expanded_queries": 16,
+          "collector_calls": 10,
+          "latency_s": 1.596
+        }
+      ],
+      "aggregate": {
+        "raw_candidates": 162,
+        "retrieval_gain_items": 0,
+        "deduped": 162,
+        "kept": 162,
+        "kept_relevant": 162,
+        "false_positives": 0,
+        "top30_relevant": 90,
+        "collector_calls": 26,
+        "latency_s": 5.938
+      }
+    },
+    "v3_vocab": {
+      "per_query": [
+        {
+          "query": "finasteride shedding",
+          "raw_candidates": 64,
+          "retrieval_gain_items": 10,
+          "deduped": 64,
+          "kept": 54,
+          "kept_relevant": 54,
+          "false_positives": 0,
+          "top30_relevant": 30,
+          "expanded_queries": 16,
+          "collector_calls": 8,
+          "latency_s": 2.687
+        },
+        {
+          "query": "minoxidil erythema",
+          "raw_candidates": 54,
+          "retrieval_gain_items": 0,
+          "deduped": 54,
+          "kept": 54,
+          "kept_relevant": 54,
+          "false_positives": 0,
+          "top30_relevant": 30,
+          "expanded_queries": 16,
+          "collector_calls": 8,
+          "latency_s": 2.786
+        },
+        {
+          "query": "dutasteride brain fog",
+          "raw_candidates": 54,
+          "retrieval_gain_items": 0,
+          "deduped": 54,
+          "kept": 54,
+          "kept_relevant": 54,
+          "false_positives": 0,
+          "top30_relevant": 30,
+          "expanded_queries": 16,
+          "collector_calls": 10,
+          "latency_s": 3.985
+        }
+      ],
+      "aggregate": {
+        "raw_candidates": 172,
+        "retrieval_gain_items": 10,
+        "deduped": 172,
+        "kept": 162,
+        "kept_relevant": 162,
+        "false_positives": 0,
+        "top30_relevant": 90,
+        "collector_calls": 26,
+        "latency_s": 9.458
+      }
+    }
+  },
+  "delta": {
+    "retrieval_gain": 10,
+    "relevance_gain": 0,
+    "ranking_gain_top30": 0,
+    "false_positive_delta": 0,
+    "collector_calls_delta": 0,
+    "latency_delta_s": 3.52
+  }
+}

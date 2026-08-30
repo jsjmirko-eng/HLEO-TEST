@@ -1,0 +1,275 @@
+{
+  "config": {
+    "queries": [
+      "La finasteride può causare shedding iniziale?",
+      "finasteride shedding",
+      "finasteride hair shedding",
+      "caduta capelli finasteride",
+      "finasteride initial shedding",
+      "propecia side effects",
+      "minoxidil hair loss",
+      "finasteride dutasteride minoxidil",
+      "androgenetic alopecia treatment",
+      "caduta capelli"
+    ],
+    "sources": [
+      "openfda_faers",
+      "calvizie",
+      "hairlosstalk",
+      "hairlossexperiences",
+      "maladiesrares"
+    ],
+    "per_source_cap": 15,
+    "top_k": 30,
+    "max_expanded": 16,
+    "qu_model": "gpt-4o-mini",
+    "llm": true,
+    "generated_at": "2026-08-23 08:32:06"
+  },
+  "arms": {
+    "La finasteride può causare shedding iniziale?": {
+      "query": "La finasteride può causare shedding iniziale?",
+      "relation_type": "side_effect",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 5,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.16,
+        "relation_at_30": 0.16
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.16,
+        "relation_at_30": 0.16
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "finasteride shedding": {
+      "query": "finasteride shedding",
+      "relation_type": "unknown",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 5,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 46,
+        "precision_at_30": 0.06666666666666667,
+        "relation_at_30": 0.06666666666666667
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 46,
+        "precision_at_30": 0.06666666666666667,
+        "relation_at_30": 0.06666666666666667
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "finasteride hair shedding": {
+      "query": "finasteride hair shedding",
+      "relation_type": "side_effect",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 4,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.16,
+        "relation_at_30": 0.16
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.16,
+        "relation_at_30": 0.16
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "caduta capelli finasteride": {
+      "query": "caduta capelli finasteride",
+      "relation_type": "treatment",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 5,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.2,
+        "relation_at_30": 0.16
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.2,
+        "relation_at_30": 0.16
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "finasteride initial shedding": {
+      "query": "finasteride initial shedding",
+      "relation_type": "treatment",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 5,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.16,
+        "relation_at_30": 0.16
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.16,
+        "relation_at_30": 0.16
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "propecia side effects": {
+      "query": "propecia side effects",
+      "relation_type": "side_effect",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 7,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 47,
+        "precision_at_30": 0.1,
+        "relation_at_30": 0.1
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 47,
+        "precision_at_30": 0.1,
+        "relation_at_30": 0.1
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "minoxidil hair loss": {
+      "query": "minoxidil hair loss",
+      "relation_type": "treatment",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 4,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.2,
+        "relation_at_30": 0.08
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 25,
+        "precision_at_30": 0.2,
+        "relation_at_30": 0.08
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "finasteride dutasteride minoxidil": {
+      "query": "finasteride dutasteride minoxidil",
+      "relation_type": "unknown",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 3,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 52,
+        "precision_at_30": 0.0,
+        "relation_at_30": 0.0
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 52,
+        "precision_at_30": 0.0,
+        "relation_at_30": 0.0
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "androgenetic alopecia treatment": {
+      "query": "androgenetic alopecia treatment",
+      "relation_type": "treatment",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 6,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 40,
+        "precision_at_30": 0.7333333333333333,
+        "relation_at_30": 0.2
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 40,
+        "precision_at_30": 0.7333333333333333,
+        "relation_at_30": 0.2
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    },
+    "caduta capelli": {
+      "query": "caduta capelli",
+      "relation_type": "unknown",
+      "expansions_a": 16,
+      "expansions_b": 16,
+      "qu_added": 3,
+      "A": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 41,
+        "precision_at_30": 0.13333333333333333,
+        "relation_at_30": 0.0
+      },
+      "B": {
+        "retrieved": 75,
+        "unique": 75,
+        "relevant": 41,
+        "precision_at_30": 0.13333333333333333,
+        "relation_at_30": 0.0
+      },
+      "relevant_only_b": 0,
+      "relevant_only_a": 0
+    }
+  },
+  "aggregate": {
+    "A": {
+      "precision_at_30": 0.1913,
+      "relation_at_30": 0.1087,
+      "unique_total": 750,
+      "relevant_total": 351
+    },
+    "B": {
+      "precision_at_30": 0.1913,
+      "relation_at_30": 0.1087,
+      "unique_total": 750,
+      "relevant_total": 351
+    }
+  }
+}

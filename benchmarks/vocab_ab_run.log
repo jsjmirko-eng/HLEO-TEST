@@ -1,0 +1,197 @@
+nohup: ignoring input
+── A–G queries (3 arms) ──
+[A] finasteride shedding
+     PRE n=355 (judge-rel 16) | vocab_evidence=10 ext_calls=19
+     v1       n=168 P=0.095 R=1.000 FP=152 lost=0 (11.8ms)
+     v3       n= 24 P=0.625 R=0.938 FP=9 lost=1 (18.6ms)
+     v3vocab  n= 24 P=0.625 R=0.938 FP=9 lost=1 (25.9ms)
+[A] finasteride hair shedding
+     PRE n=355 (judge-rel 16) | vocab_evidence=10 ext_calls=0
+     v1       n=108 P=0.139 R=0.938 FP=93 lost=1 (17.5ms)
+     v3       n= 47 P=0.319 R=0.938 FP=32 lost=1 (24.6ms)
+     v3vocab  n= 47 P=0.319 R=0.938 FP=32 lost=1 (29.2ms)
+[A] minoxidil hair loss
+     PRE n=355 (judge-rel 15) | vocab_evidence=13 ext_calls=21
+     v1       n=106 P=0.113 R=0.800 FP=94 lost=3 (17.7ms)
+     v3       n= 15 P=0.667 R=0.667 FP=5 lost=5 (27.1ms)
+     v3vocab  n= 15 P=0.667 R=0.667 FP=5 lost=5 (26.4ms)
+[B] finasteride
+     PRE n=355 (judge-rel 68) | vocab_evidence=7 ext_calls=0
+     v1       n=168 P=0.405 R=1.000 FP=100 lost=0 (10.4ms)
+     v3       n=168 P=0.405 R=1.000 FP=100 lost=0 (11.6ms)
+     v3vocab  n=168 P=0.405 R=1.000 FP=100 lost=0 (11.2ms)
+[B] minoxidil
+     PRE n=355 (judge-rel 76) | vocab_evidence=8 ext_calls=0
+     v1       n=164 P=0.390 R=0.842 FP=100 lost=12 (10.3ms)
+     v3       n=164 P=0.390 R=0.842 FP=100 lost=12 (10.1ms)
+     v3vocab  n=164 P=0.390 R=0.842 FP=100 lost=12 (10.8ms)
+[C] androgenetic alopecia
+     PRE n=355 (judge-rel 114) | vocab_evidence=10 ext_calls=11
+     v1       n=206 P=0.553 R=1.000 FP=92 lost=0 (18.0ms)
+     v3       n=210 P=0.543 R=1.000 FP=96 lost=0 (40.4ms)
+     v3vocab  n=210 P=0.543 R=1.000 FP=96 lost=0 (66.1ms)
+[C] hair loss
+     PRE n=355 (judge-rel 182) | vocab_evidence=5 ext_calls=0
+     v1       n=208 P=0.861 R=0.984 FP=29 lost=3 (16.5ms)
+     v3       n=210 P=0.852 R=0.984 FP=31 lost=3 (32.3ms)
+     v3vocab  n=210 P=0.852 R=0.984 FP=31 lost=3 (34.8ms)
+[D] finasteride can cause depression
+     PRE n=355 (judge-rel 0) | vocab_evidence=17 ext_calls=22
+     v1       n= 18 P=0.000 R=0.000 FP=18 lost=0 (16.1ms)
+     v3       n= 17 P=0.000 R=0.000 FP=17 lost=0 (24.5ms)
+     v3vocab  n= 17 P=0.000 R=0.000 FP=17 lost=0 (45.7ms)
+[D] finasteride side effects
+     PRE n=355 (judge-rel 27) | vocab_evidence=15 ext_calls=19
+     v1       n=171 P=0.158 R=1.000 FP=144 lost=0 (10.9ms)
+     v3       n=133 P=0.196 R=0.963 FP=107 lost=1 (30.3ms)
+     v3vocab  n=133 P=0.196 R=0.963 FP=107 lost=1 (27.6ms)
+[E] finasteride dutasteride minoxidil
+     PRE n=355 (judge-rel 128) | vocab_evidence=22 ext_calls=12
+     v1       n=217 P=0.539 R=0.914 FP=100 lost=11 (13.3ms)
+     v3       n=217 P=0.539 R=0.914 FP=100 lost=11 (12.0ms)
+     v3vocab  n=217 P=0.539 R=0.914 FP=100 lost=11 (16.7ms)
+[F] does finasteride make your hair fall out at first?
+     PRE n=355 (judge-rel 16) | vocab_evidence=10 ext_calls=0
+     v1       n=108 P=0.139 R=0.938 FP=93 lost=1 (18.8ms)
+     v3       n= 47 P=0.319 R=0.938 FP=32 lost=1 (26.3ms)
+     v3vocab  n= 47 P=0.319 R=0.938 FP=32 lost=1 (31.3ms)
+[F] since I started minoxidil my hair is falling out more
+     PRE n=355 (judge-rel 15) | vocab_evidence=11 ext_calls=0
+     v1       n=164 P=0.073 R=0.800 FP=152 lost=3 (11.0ms)
+     v3       n= 15 P=0.667 R=0.667 FP=5 lost=5 (20.0ms)
+     v3vocab  n= 15 P=0.667 R=0.667 FP=5 lost=5 (31.2ms)
+[F] I lost my libido since taking finasteride
+     PRE n=355 (judge-rel 5) | vocab_evidence=16 ext_calls=11
+     v1       n=169 P=0.030 R=1.000 FP=164 lost=0 (11.0ms)
+     v3       n= 47 P=0.106 R=1.000 FP=42 lost=0 (25.0ms)
+     v3vocab  n= 47 P=0.106 R=1.000 FP=42 lost=0 (44.8ms)
+[G] caduta capelli finasteride
+     PRE n=355 (judge-rel 18) | vocab_evidence=12 ext_calls=0
+     v1       n=108 P=0.148 R=0.889 FP=92 lost=2 (17.7ms)
+     v3       n= 48 P=0.333 R=0.889 FP=32 lost=2 (24.2ms)
+     v3vocab  n= 48 P=0.333 R=0.889 FP=32 lost=2 (26.5ms)
+[G] la finasteride può causare depressione?
+     PRE n=355 (judge-rel 0) | vocab_evidence=17 ext_calls=0
+     v1       n= 18 P=0.000 R=0.000 FP=18 lost=0 (16.1ms)
+     v3       n= 17 P=0.000 R=0.000 FP=17 lost=0 (24.9ms)
+     v3vocab  n= 17 P=0.000 R=0.000 FP=17 lost=0 (44.9ms)
+[G] minoxidil shedding
+     PRE n=355 (judge-rel 15) | vocab_evidence=11 ext_calls=0
+     v1       n=164 P=0.073 R=0.800 FP=152 lost=3 (10.4ms)
+     v3       n= 15 P=0.667 R=0.667 FP=5 lost=5 (21.7ms)
+     v3vocab  n= 15 P=0.667 R=0.667 FP=5 lost=5 (26.1ms)
+[G] finasteride initial shedding
+     PRE n=355 (judge-rel 16) | vocab_evidence=10 ext_calls=0
+     v1       n=108 P=0.139 R=0.938 FP=93 lost=1 (17.5ms)
+     v3       n= 47 P=0.319 R=0.938 FP=32 lost=1 (24.2ms)
+     v3vocab  n= 47 P=0.319 R=0.938 FP=32 lost=1 (28.5ms)
+
+── Vocabulary-focused queries (3 arms) ──
+[IT] caduta capelli
+     PRE n=355 (judge-rel 182) | vocab_evidence=5 ext_calls=0
+     v1       n=208 P=0.861 R=0.984 FP=29 lost=3 (17.6ms)
+     v3       n=210 P=0.852 R=0.984 FP=31 lost=3 (32.6ms)
+     v3vocab  n=210 P=0.852 R=0.984 FP=31 lost=3 (34.6ms)
+[IT] mi stanno cadendo i capelli
+     PRE n=355 (judge-rel 182) | vocab_evidence=5 ext_calls=0
+     v1       n=209 P=0.857 R=0.984 FP=30 lost=3 (16.7ms)
+     v3       n=213 P=0.840 R=0.984 FP=34 lost=3 (23.6ms)
+     v3vocab  n=213 P=0.840 R=0.984 FP=34 lost=3 (25.2ms)
+[IT] mi si stanno diradando i capelli
+     PRE n=255 (judge-rel 82) | vocab_evidence=0 ext_calls=9
+     v1       n= 87 P=0.621 R=0.658 FP=33 lost=28 (8.2ms)
+     v3       n=106 P=0.745 R=0.963 FP=27 lost=3 (14.2ms)
+     v3vocab  n=106 P=0.745 R=0.963 FP=27 lost=3 (14.1ms)
+[IT] stempiatura
+     PRE n=255 (judge-rel 90) | vocab_evidence=5 ext_calls=0
+     v1       n=  1 P=1.000 R=0.011 FP=0 lost=89 (7.8ms)
+     v3       n=110 P=0.736 R=0.900 FP=29 lost=9 (26.9ms)
+     v3vocab  n=110 P=0.736 R=0.900 FP=29 lost=9 (29.4ms)
+[IT] perdo un sacco di capelli
+     PRE n=255 (judge-rel 82) | vocab_evidence=5 ext_calls=0
+     v1       n=  7 P=0.857 R=0.073 FP=1 lost=76 (8.2ms)
+     v3       n=111 P=0.712 R=0.963 FP=32 lost=3 (22.6ms)
+     v3vocab  n=111 P=0.712 R=0.963 FP=32 lost=3 (20.4ms)
+[EN] hair fall
+     PRE n=355 (judge-rel 182) | vocab_evidence=5 ext_calls=0
+     v1       n=206 P=0.869 R=0.984 FP=27 lost=3 (16.8ms)
+     v3       n=210 P=0.852 R=0.984 FP=31 lost=3 (24.5ms)
+     v3vocab  n=210 P=0.852 R=0.984 FP=31 lost=3 (25.2ms)
+[EN] hair thinning
+     PRE n=355 (judge-rel 182) | vocab_evidence=5 ext_calls=0
+     v1       n=206 P=0.869 R=0.984 FP=27 lost=3 (17.7ms)
+     v3       n=210 P=0.852 R=0.984 FP=31 lost=3 (24.2ms)
+     v3vocab  n=210 P=0.852 R=0.984 FP=31 lost=3 (26.1ms)
+[AB] minox
+     PRE n=255 (judge-rel 76) | vocab_evidence=8 ext_calls=0
+     v1       n= 17 P=1.000 R=0.224 FP=0 lost=59 (8.1ms)
+     v3       n= 74 P=1.000 R=0.974 FP=0 lost=2 (8.8ms)
+     v3vocab  n= 74 P=1.000 R=0.974 FP=0 lost=2 (9.6ms)
+[AB] dut
+     PRE n=255 (judge-rel 32) | vocab_evidence=0 ext_calls=0
+     v1       n=  0 P=0.000 R=0.000 FP=0 lost=32 (7.8ms)
+     v3       n=  0 P=0.000 R=0.000 FP=0 lost=32 (7.7ms)
+     v3vocab  n=  0 P=0.000 R=0.000 FP=0 lost=32 (7.6ms)
+[AB] fin
+     PRE n=355 (judge-rel 69) | vocab_evidence=7 ext_calls=0
+     v1       n=102 P=0.000 R=0.000 FP=102 lost=69 (10.0ms)
+     v3       n=171 P=0.404 R=1.000 FP=102 lost=0 (11.8ms)
+     v3vocab  n=171 P=0.404 R=1.000 FP=102 lost=0 (12.7ms)
+[AB] rogaine
+     PRE n=355 (judge-rel 76) | vocab_evidence=8 ext_calls=0
+     v1       n=164 P=0.390 R=0.842 FP=100 lost=12 (10.5ms)
+     v3       n=164 P=0.390 R=0.842 FP=100 lost=12 (10.2ms)
+     v3vocab  n=164 P=0.390 R=0.842 FP=100 lost=12 (11.0ms)
+[SL] shedding like crazy
+     PRE n=255 (judge-rel 15) | vocab_evidence=3 ext_calls=0
+     v1       n=  3 P=1.000 R=0.200 FP=0 lost=12 (8.4ms)
+     v3       n=106 P=0.132 R=0.933 FP=92 lost=1 (14.3ms)
+     v3vocab  n=106 P=0.132 R=0.933 FP=92 lost=1 (19.4ms)
+[SL] my hairline keeps receding
+     PRE n=255 (judge-rel 90) | vocab_evidence=5 ext_calls=0
+     v1       n=  2 P=1.000 R=0.022 FP=0 lost=88 (8.2ms)
+     v3       n=110 P=0.736 R=0.900 FP=29 lost=9 (19.1ms)
+     v3vocab  n=110 P=0.736 R=0.900 FP=29 lost=9 (20.8ms)
+[SL] my crown is thinning bad
+     PRE n=255 (judge-rel 87) | vocab_evidence=5 ext_calls=0
+     v1       n=  4 P=1.000 R=0.046 FP=0 lost=83 (8.5ms)
+     v3       n=110 P=0.736 R=0.931 FP=29 lost=6 (19.6ms)
+     v3vocab  n=110 P=0.736 R=0.931 FP=29 lost=6 (20.3ms)
+[SL] losing hair on fin
+     PRE n=255 (judge-rel 16) | vocab_evidence=12 ext_calls=0
+     v1       n= 10 P=0.100 R=0.062 FP=9 lost=15 (8.1ms)
+     v3       n= 41 P=0.366 R=0.938 FP=26 lost=1 (20.3ms)
+     v3vocab  n= 41 P=0.366 R=0.938 FP=26 lost=1 (22.0ms)
+[SL] minox not working
+     PRE n=255 (judge-rel 76) | vocab_evidence=8 ext_calls=0
+     v1       n=  4 P=0.750 R=0.040 FP=1 lost=73 (7.9ms)
+     v3       n= 64 P=1.000 R=0.842 FP=0 lost=12 (9.5ms)
+     v3vocab  n= 64 P=1.000 R=0.842 FP=0 lost=12 (9.9ms)
+
+── Vocabulary resolution probe ──
+active providers: ['rxnorm', 'mesh', 'conceptnet', 'wikidata']
+  finasteride (en) → rxnorm:exact, mesh:exact, wikidata:exact, wikidata:concept
+  minoxidil (en) → rxnorm:exact, rxnorm:exact, mesh:exact, wikidata:exact
+  dutasteride (en) → rxnorm:exact, mesh:exact, wikidata:exact, wikidata:abbreviation
+  rogaine (en) → rxnorm:synonym, wikidata:abbreviation, wikidata:concept, wikidata:concept
+  minox (en) → rxnorm:normalized, rxnorm:normalized, rxnorm:normalized, rxnorm:normalized
+  fin (en) → mesh:normalized, wikidata:concept, wikidata:concept, wikidata:concept
+  dut (en) → wikidata:concept, wikidata:concept, wikidata:abbreviation, wikidata:exact
+  hair loss (en) → wikidata:abbreviation, wikidata:abbreviation, wikidata:exact, wikidata:abbreviation
+  hair shedding (en) → wikidata:concept, wikidata:concept, wikidata:concept
+  alopecia (en) → rxnorm:normalized, rxnorm:normalized, rxnorm:normalized, rxnorm:normalized
+  side effects (en) → rxnorm:normalized, mesh:normalized, mesh:normalized, wikidata:exact
+  hair fall (en) → wikidata:abbreviation, wikidata:concept, wikidata:exact
+  hair thinning (en) → —
+  ferritin (en) → rxnorm:normalized, rxnorm:normalized, mesh:normalized, wikidata:concept
+  DHT (en) → wikidata:abbreviation, wikidata:abbreviation, wikidata:exact, wikidata:abbreviation
+  caduta capelli (it) → rxnorm:normalized, rxnorm:normalized, rxnorm:normalized
+  stempiatura (it) → wikidata:concept
+  mi stanno cadendo i capelli (it) → —
+  perdita di capelli (it) → —
+  pelade (fr) → wikidata:abbreviation, wikidata:abbreviation, wikidata:abbreviation, wikidata:abbreviation
+cache: 2nd pass external calls = 0 (0 = 100% hit-rate) | entries=92
+
+TOTALS: {'v1_n': 3603, 'v1_fp': 2045, 'v1_lost': 688, 'v3_n': 3451, 'v3_fp': 1355, 'v3_lost': 150, 'v3vocab_n': 3451, 'v3vocab_fp': 1355, 'v3vocab_lost': 150, 'pre': 10715, 'pre_rel': 2246}
+LLM calls=33 (37.0s) | external vocab HTTP calls=257
+Saved vocab_ab_report.json

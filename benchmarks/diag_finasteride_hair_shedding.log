@@ -1,0 +1,126 @@
+snapshot entries: 314 | sources: ['openfda_faers', 'calvizie', 'hairlosstalk', 'hairlossexperiences', 'maladiesrares'] | cap/source=15
+====================================================================================================
+QUERY: finasteride hair shedding
+  plan: lang=en translated='finasteride hair shedding' entities=[('drug', 'finasteride'), ('symptom', 'hair loss')]
+  expansions (16): [original] finasteride hair shedding; [synonym] finasteride; [synonym] hair loss; [synonym] propecia; [synonym] proscar; [synonym] hair shedding; [synonym] alopecia; [mesh] 5-alpha Reductase Inhibitors; [mesh] Hair Diseases; [mesh] Hair Follicle; [colloquial] finasteride increased hair loss; [colloquial] finasteride initial shedding; [colloquial] finasteride temporary worsening; [colloquial] finasteride increased hair fall; [colloquial] finasteride hair fall out; [colloquial] finasteride caduta iniziale
+  relevance view: drug_terms=['finasteride', 'finasteride', 'propecia', 'proscar', 'finpecia', 'fincar']
+                  event_terms=['hair loss', 'hair loss', 'hair shedding', 'alopecia', 'hair fall', 'hair thinning']
+  relevance filter query = 'finasteride hair shedding'  threshold min_score=0.20
+
+── Collector: openfda_faers ───────────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride hair shedding                           ' → status=no_results  raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'finasteride                                         ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair loss                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride initial shedding                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride temporary worsening                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair fall                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride hair fall out                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride caduta iniziale                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=15/15 (100%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 0 out; drop reasons: {'drug_match_only': 15}
+
+── Collector: calvizie ────────────────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride hair shedding                           ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'finasteride                                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair loss                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride initial shedding                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride temporary worsening                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair fall                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride hair fall out                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride caduta iniziale                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 4 out; drop reasons: {'drug_match_only': 11}
+
+── Collector: hairlosstalk ────────────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride hair shedding                           ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'finasteride                                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair loss                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride initial shedding                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride temporary worsening                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair fall                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride hair fall out                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride caduta iniziale                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 5 out; drop reasons: {'drug_match_only': 10}
+
+── Collector: hairlossexperiences ─────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride hair shedding                           ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'finasteride                                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair loss                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride initial shedding                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride temporary worsening                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair fall                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride hair fall out                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride caduta iniziale                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 9 out; drop reasons: {'drug_match_only': 6}
+
+── Collector: maladiesrares ───────────────────────────────────────────────────────────────────────
+  [original   ] 'finasteride hair shedding                           ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'finasteride                                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'propecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'proscar                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] '5-alpha Reductase Inhibitors                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair loss                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride initial shedding                        ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride temporary worsening                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride increased hair fall                     ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride hair fall out                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'finasteride caduta iniziale                         ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 7 out; drop reasons: {'drug_match_only': 8}
+
+── GLOBAL STAGES ──────────────────────────────────────────────────────────────────────────────────
+  cross-source pool: 75 → deduplicate() → 75
+  relevance_filter(global): 75 in → 25 out; survivors by source: {'hairlosstalk': 5, 'calvizie': 4, 'hairlossexperiences': 9, 'maladiesrares': 7}
+
+── ITEM DIAGNOSTICS (top-5 KEPT + first 5 DROPPED) ────────────────────────────────────────────────
+ # source              title                                        text? treat? meta?  score  verdict/reason
+ 1 hairlosstalk        Oral bicalutamide Log - HemingwayTheMercen   yes   -      yes    0.877  KEPT drug+event_match (drug=['finasteride']; event=['hair loss', 'thinning'
+ 2 calvizie            Assumo Finasteride dal 2001: sta perdendo    yes   -      yes    0.843  KEPT drug+event_match (drug=['finasteride']; event=['caduta', 'caduta dei c
+ 3 hairlossexperiences Why doesn't Finasteride work for me?         yes   -      yes    0.843  KEPT drug+event_match (drug=['finasteride']; event=['bald', 'hairfall']; to
+ 4 hairlosstalk        Dutasteride while my wife is pregnant?       yes   -      yes    0.797  KEPT drug+event_match (drug=['finasteride']; event=['shedding']; tokens=3)
+ 5 hairlosstalk        At what point do you give up on Finasterid   yes   -      yes    0.764  KEPT drug+event_match (drug=['finasteride']; event=['shedding']; tokens=2)
+ 6 openfda_faers       FAERS report 10003376 — Diarrhoea; Arthral   yes   yes    yes    0.150  DROP drug_match_only (drug=['finasteride']; event_missing — queried event n
+ 7 openfda_faers       FAERS report 10003840 — Fluid retention; F   yes   yes    yes    0.150  DROP drug_match_only (drug=['finasteride']; event_missing — queried event n
+ 8 openfda_faers       FAERS report 10003959 — Splenomegaly; Dysp   yes   yes    yes    0.150  DROP drug_match_only (drug=['finasteride']; event_missing — queried event n
+ 9 openfda_faers       FAERS report 10004163 — Decreased appetite   yes   yes    yes    0.150  DROP drug_match_only (drug=['finasteride']; event_missing — queried event n
+10 openfda_faers       FAERS report 10004188 — Cognitive disorder   yes   yes    yes    0.150  DROP drug_match_only (drug=['finasteride']; event_missing — queried event n
+

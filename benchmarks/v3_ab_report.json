@@ -1,0 +1,729 @@
+{
+  "config": {
+    "min_score": 0.2,
+    "cap_per_source": 100,
+    "exhaustive": true,
+    "flag": "HLEO_RWE_INTENT_SCORING=1",
+    "judge": "hand-written term sets (anti-circular)",
+    "n_queries": 17
+  },
+  "queries": {
+    "finasteride shedding": {
+      "group": "A",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [
+        "hair shedding"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 2.05,
+      "scoring_ms": {
+        "v1": 11.9,
+        "v3": 18.5
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 16,
+      "v1": {
+        "n": 168,
+        "judge_relevant": 16,
+        "precision": 0.0952,
+        "recall": 1.0,
+        "false_positives": 152,
+        "lost_relevant": 0
+      },
+      "v3": {
+        "n": 24,
+        "judge_relevant": 15,
+        "precision": 0.625,
+        "recall": 0.9375,
+        "false_positives": 9,
+        "lost_relevant": 1
+      },
+      "delta": {
+        "precision": 0.5298,
+        "recall": -0.0625,
+        "kept": -144,
+        "lost_relevant": 1,
+        "false_positives": -143
+      }
+    },
+    "finasteride hair shedding": {
+      "group": "A",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [
+        "hair shedding"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.52,
+      "scoring_ms": {
+        "v1": 18.4,
+        "v3": 25.7
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 16,
+      "v1": {
+        "n": 108,
+        "judge_relevant": 15,
+        "precision": 0.1389,
+        "recall": 0.9375,
+        "false_positives": 93,
+        "lost_relevant": 1
+      },
+      "v3": {
+        "n": 47,
+        "judge_relevant": 15,
+        "precision": 0.3191,
+        "recall": 0.9375,
+        "false_positives": 32,
+        "lost_relevant": 1
+      },
+      "delta": {
+        "precision": 0.1802,
+        "recall": 0.0,
+        "kept": -61,
+        "lost_relevant": 0,
+        "false_positives": -61
+      }
+    },
+    "minoxidil hair loss": {
+      "group": "A",
+      "intent_source": "llm",
+      "intent_iv": [
+        "minoxidil"
+      ],
+      "intent_oc": [],
+      "intent_cd": [
+        "hair loss"
+      ],
+      "llm_calls": 1,
+      "plan_seconds": 1.49,
+      "scoring_ms": {
+        "v1": 17.6,
+        "v3": 26.4
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 15,
+      "v1": {
+        "n": 106,
+        "judge_relevant": 12,
+        "precision": 0.1132,
+        "recall": 0.8,
+        "false_positives": 94,
+        "lost_relevant": 3
+      },
+      "v3": {
+        "n": 15,
+        "judge_relevant": 10,
+        "precision": 0.6667,
+        "recall": 0.6667,
+        "false_positives": 5,
+        "lost_relevant": 5
+      },
+      "delta": {
+        "precision": 0.5535,
+        "recall": -0.1333,
+        "kept": -91,
+        "lost_relevant": 2,
+        "false_positives": -89
+      }
+    },
+    "finasteride": {
+      "group": "B",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.42,
+      "scoring_ms": {
+        "v1": 10.5,
+        "v3": 11.4
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 68,
+      "v1": {
+        "n": 168,
+        "judge_relevant": 68,
+        "precision": 0.4048,
+        "recall": 1.0,
+        "false_positives": 100,
+        "lost_relevant": 0
+      },
+      "v3": {
+        "n": 168,
+        "judge_relevant": 68,
+        "precision": 0.4048,
+        "recall": 1.0,
+        "false_positives": 100,
+        "lost_relevant": 0
+      },
+      "delta": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "kept": 0,
+        "lost_relevant": 0,
+        "false_positives": 0
+      }
+    },
+    "minoxidil": {
+      "group": "B",
+      "intent_source": "llm",
+      "intent_iv": [
+        "minoxidil"
+      ],
+      "intent_oc": [],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.48,
+      "scoring_ms": {
+        "v1": 10.6,
+        "v3": 10.1
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 76,
+      "v1": {
+        "n": 164,
+        "judge_relevant": 64,
+        "precision": 0.3902,
+        "recall": 0.8421,
+        "false_positives": 100,
+        "lost_relevant": 12
+      },
+      "v3": {
+        "n": 164,
+        "judge_relevant": 64,
+        "precision": 0.3902,
+        "recall": 0.8421,
+        "false_positives": 100,
+        "lost_relevant": 12
+      },
+      "delta": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "kept": 0,
+        "lost_relevant": 0,
+        "false_positives": 0
+      }
+    },
+    "androgenetic alopecia": {
+      "group": "C",
+      "intent_source": "llm",
+      "intent_iv": [],
+      "intent_oc": [],
+      "intent_cd": [
+        "androgenetic alopecia"
+      ],
+      "llm_calls": 1,
+      "plan_seconds": 1.59,
+      "scoring_ms": {
+        "v1": 18.3,
+        "v3": 45.5
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 114,
+      "v1": {
+        "n": 206,
+        "judge_relevant": 114,
+        "precision": 0.5534,
+        "recall": 1.0,
+        "false_positives": 92,
+        "lost_relevant": 0
+      },
+      "v3": {
+        "n": 210,
+        "judge_relevant": 114,
+        "precision": 0.5429,
+        "recall": 1.0,
+        "false_positives": 96,
+        "lost_relevant": 0
+      },
+      "delta": {
+        "precision": -0.0105,
+        "recall": 0.0,
+        "kept": 4,
+        "lost_relevant": 0,
+        "false_positives": 4
+      }
+    },
+    "hair loss": {
+      "group": "C",
+      "intent_source": "llm",
+      "intent_iv": [],
+      "intent_oc": [],
+      "intent_cd": [
+        "hair loss"
+      ],
+      "llm_calls": 1,
+      "plan_seconds": 1.48,
+      "scoring_ms": {
+        "v1": 16.6,
+        "v3": 33.5
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 182,
+      "v1": {
+        "n": 208,
+        "judge_relevant": 179,
+        "precision": 0.8606,
+        "recall": 0.9835,
+        "false_positives": 29,
+        "lost_relevant": 3
+      },
+      "v3": {
+        "n": 210,
+        "judge_relevant": 179,
+        "precision": 0.8524,
+        "recall": 0.9835,
+        "false_positives": 31,
+        "lost_relevant": 3
+      },
+      "delta": {
+        "precision": -0.0082,
+        "recall": 0.0,
+        "kept": 2,
+        "lost_relevant": 0,
+        "false_positives": 2
+      }
+    },
+    "finasteride can cause depression": {
+      "group": "D",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [
+        "depression"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.67,
+      "scoring_ms": {
+        "v1": 16.3,
+        "v3": 24.4
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 0,
+      "v1": {
+        "n": 18,
+        "judge_relevant": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "false_positives": 18,
+        "lost_relevant": 0
+      },
+      "v3": {
+        "n": 17,
+        "judge_relevant": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "false_positives": 17,
+        "lost_relevant": 0
+      },
+      "delta": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "kept": -1,
+        "lost_relevant": 0,
+        "false_positives": -1
+      }
+    },
+    "finasteride side effects": {
+      "group": "D",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [
+        "side effects"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.71,
+      "scoring_ms": {
+        "v1": 10.7,
+        "v3": 27.4
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 27,
+      "v1": {
+        "n": 171,
+        "judge_relevant": 27,
+        "precision": 0.1579,
+        "recall": 1.0,
+        "false_positives": 144,
+        "lost_relevant": 0
+      },
+      "v3": {
+        "n": 133,
+        "judge_relevant": 26,
+        "precision": 0.1955,
+        "recall": 0.963,
+        "false_positives": 107,
+        "lost_relevant": 1
+      },
+      "delta": {
+        "precision": 0.0376,
+        "recall": -0.037,
+        "kept": -38,
+        "lost_relevant": 1,
+        "false_positives": -37
+      }
+    },
+    "finasteride dutasteride minoxidil": {
+      "group": "E",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride",
+        "dutasteride",
+        "minoxidil"
+      ],
+      "intent_oc": [],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.71,
+      "scoring_ms": {
+        "v1": 15.2,
+        "v3": 11.9
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 128,
+      "v1": {
+        "n": 217,
+        "judge_relevant": 117,
+        "precision": 0.5392,
+        "recall": 0.9141,
+        "false_positives": 100,
+        "lost_relevant": 11
+      },
+      "v3": {
+        "n": 217,
+        "judge_relevant": 117,
+        "precision": 0.5392,
+        "recall": 0.9141,
+        "false_positives": 100,
+        "lost_relevant": 11
+      },
+      "delta": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "kept": 0,
+        "lost_relevant": 0,
+        "false_positives": 0
+      }
+    },
+    "does finasteride make your hair fall out at first?": {
+      "group": "F",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [
+        "hair shedding"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.54,
+      "scoring_ms": {
+        "v1": 20.9,
+        "v3": 30.5
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 16,
+      "v1": {
+        "n": 108,
+        "judge_relevant": 15,
+        "precision": 0.1389,
+        "recall": 0.9375,
+        "false_positives": 93,
+        "lost_relevant": 1
+      },
+      "v3": {
+        "n": 47,
+        "judge_relevant": 15,
+        "precision": 0.3191,
+        "recall": 0.9375,
+        "false_positives": 32,
+        "lost_relevant": 1
+      },
+      "delta": {
+        "precision": 0.1802,
+        "recall": 0.0,
+        "kept": -61,
+        "lost_relevant": 0,
+        "false_positives": -61
+      }
+    },
+    "since I started minoxidil my hair is falling out more": {
+      "group": "F",
+      "intent_source": "llm",
+      "intent_iv": [
+        "minoxidil"
+      ],
+      "intent_oc": [
+        "hair shedding"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.59,
+      "scoring_ms": {
+        "v1": 11.1,
+        "v3": 18.8
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 15,
+      "v1": {
+        "n": 164,
+        "judge_relevant": 12,
+        "precision": 0.0732,
+        "recall": 0.8,
+        "false_positives": 152,
+        "lost_relevant": 3
+      },
+      "v3": {
+        "n": 15,
+        "judge_relevant": 10,
+        "precision": 0.6667,
+        "recall": 0.6667,
+        "false_positives": 5,
+        "lost_relevant": 5
+      },
+      "delta": {
+        "precision": 0.5935,
+        "recall": -0.1333,
+        "kept": -149,
+        "lost_relevant": 2,
+        "false_positives": -147
+      }
+    },
+    "I lost my libido since taking finasteride": {
+      "group": "F",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [
+        "loss of libido"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.67,
+      "scoring_ms": {
+        "v1": 14.4,
+        "v3": 22.2
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 5,
+      "v1": {
+        "n": 169,
+        "judge_relevant": 5,
+        "precision": 0.0296,
+        "recall": 1.0,
+        "false_positives": 164,
+        "lost_relevant": 0
+      },
+      "v3": {
+        "n": 47,
+        "judge_relevant": 5,
+        "precision": 0.1064,
+        "recall": 1.0,
+        "false_positives": 42,
+        "lost_relevant": 0
+      },
+      "delta": {
+        "precision": 0.0768,
+        "recall": 0.0,
+        "kept": -122,
+        "lost_relevant": 0,
+        "false_positives": -122
+      }
+    },
+    "caduta capelli finasteride": {
+      "group": "G",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [],
+      "intent_cd": [
+        "hair loss"
+      ],
+      "llm_calls": 1,
+      "plan_seconds": 1.66,
+      "scoring_ms": {
+        "v1": 17.9,
+        "v3": 27.4
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 18,
+      "v1": {
+        "n": 108,
+        "judge_relevant": 16,
+        "precision": 0.1481,
+        "recall": 0.8889,
+        "false_positives": 92,
+        "lost_relevant": 2
+      },
+      "v3": {
+        "n": 48,
+        "judge_relevant": 16,
+        "precision": 0.3333,
+        "recall": 0.8889,
+        "false_positives": 32,
+        "lost_relevant": 2
+      },
+      "delta": {
+        "precision": 0.1852,
+        "recall": 0.0,
+        "kept": -60,
+        "lost_relevant": 0,
+        "false_positives": -60
+      }
+    },
+    "la finasteride può causare depressione?": {
+      "group": "G",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [
+        "depression"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.47,
+      "scoring_ms": {
+        "v1": 15.9,
+        "v3": 24.0
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 0,
+      "v1": {
+        "n": 18,
+        "judge_relevant": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "false_positives": 18,
+        "lost_relevant": 0
+      },
+      "v3": {
+        "n": 17,
+        "judge_relevant": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "false_positives": 17,
+        "lost_relevant": 0
+      },
+      "delta": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "kept": -1,
+        "lost_relevant": 0,
+        "false_positives": -1
+      }
+    },
+    "minoxidil shedding": {
+      "group": "G",
+      "intent_source": "llm",
+      "intent_iv": [
+        "minoxidil"
+      ],
+      "intent_oc": [
+        "hair shedding"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.58,
+      "scoring_ms": {
+        "v1": 10.4,
+        "v3": 22.9
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 15,
+      "v1": {
+        "n": 164,
+        "judge_relevant": 12,
+        "precision": 0.0732,
+        "recall": 0.8,
+        "false_positives": 152,
+        "lost_relevant": 3
+      },
+      "v3": {
+        "n": 15,
+        "judge_relevant": 10,
+        "precision": 0.6667,
+        "recall": 0.6667,
+        "false_positives": 5,
+        "lost_relevant": 5
+      },
+      "delta": {
+        "precision": 0.5935,
+        "recall": -0.1333,
+        "kept": -149,
+        "lost_relevant": 2,
+        "false_positives": -147
+      }
+    },
+    "finasteride initial shedding": {
+      "group": "G",
+      "intent_source": "llm",
+      "intent_iv": [
+        "finasteride"
+      ],
+      "intent_oc": [
+        "hair shedding"
+      ],
+      "intent_cd": [],
+      "llm_calls": 1,
+      "plan_seconds": 1.55,
+      "scoring_ms": {
+        "v1": 18.5,
+        "v3": 25.8
+      },
+      "pre_n": 355,
+      "pre_judge_relevant": 16,
+      "v1": {
+        "n": 108,
+        "judge_relevant": 15,
+        "precision": 0.1389,
+        "recall": 0.9375,
+        "false_positives": 93,
+        "lost_relevant": 1
+      },
+      "v3": {
+        "n": 47,
+        "judge_relevant": 15,
+        "precision": 0.3191,
+        "recall": 0.9375,
+        "false_positives": 32,
+        "lost_relevant": 1
+      },
+      "delta": {
+        "precision": 0.1802,
+        "recall": 0.0,
+        "kept": -61,
+        "lost_relevant": 0,
+        "false_positives": -61
+      }
+    }
+  },
+  "totals": {
+    "pre": 6035,
+    "v1_n": 2373,
+    "v3_n": 1441,
+    "v1_fp": 1686,
+    "v3_fp": 762,
+    "v1_lost": 40,
+    "v3_lost": 48,
+    "llm_calls_total": 17,
+    "llm_seconds_total": 17.5
+  }
+}

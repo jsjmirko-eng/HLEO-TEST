@@ -1,0 +1,126 @@
+snapshot entries: 314 | sources: ['openfda_faers', 'calvizie', 'hairlosstalk', 'hairlossexperiences', 'maladiesrares'] | cap/source=15
+====================================================================================================
+QUERY: minoxidil hair loss
+  plan: lang=en translated='minoxidil hair loss' entities=[('drug', 'minoxidil'), ('symptom', 'hair loss')]
+  expansions (16): [original] minoxidil hair loss; [synonym] minoxidil; [synonym] hair loss; [synonym] rogaine; [synonym] regaine; [synonym] hair shedding; [synonym] alopecia; [mesh] Vasodilator Agents; [mesh] Hair Diseases; [mesh] Hair Follicle; [colloquial] minoxidil increased hair loss; [colloquial] minoxidil initial shedding; [colloquial] minoxidil hair shedding; [colloquial] minoxidil temporary worsening; [colloquial] minoxidil increased hair fall; [colloquial] minoxidil hair fall out
+  relevance view: drug_terms=['minoxidil', 'minoxidil', 'rogaine', 'regaine', 'loniten', 'mintop']
+                  event_terms=['hair loss', 'hair loss', 'hair shedding', 'alopecia', 'hair fall', 'hair thinning']
+  relevance filter query = 'minoxidil hair loss'  threshold min_score=0.20
+
+── Collector: openfda_faers ───────────────────────────────────────────────────────────────────────
+  [original   ] 'minoxidil hair loss                                 ' → status=no_results  raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'minoxidil                                           ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'rogaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'regaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Vasodilator Agents                                  ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair loss                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil initial shedding                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair shedding                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil temporary worsening                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair fall                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair fall out                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=15/15 (100%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 0 out; drop reasons: {'drug_match_only': 15}
+
+── Collector: calvizie ────────────────────────────────────────────────────────────────────────────
+  [original   ] 'minoxidil hair loss                                 ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'minoxidil                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'rogaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'regaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Vasodilator Agents                                  ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair loss                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil initial shedding                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair shedding                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil temporary worsening                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair fall                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair fall out                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 4 out; drop reasons: {'drug_match_only': 11}
+
+── Collector: hairlosstalk ────────────────────────────────────────────────────────────────────────
+  [original   ] 'minoxidil hair loss                                 ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'minoxidil                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'rogaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'regaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Vasodilator Agents                                  ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair loss                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil initial shedding                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair shedding                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil temporary worsening                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair fall                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair fall out                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 5 out; drop reasons: {'drug_match_only': 10}
+
+── Collector: hairlossexperiences ─────────────────────────────────────────────────────────────────
+  [original   ] 'minoxidil hair loss                                 ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'minoxidil                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'rogaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'regaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Vasodilator Agents                                  ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair loss                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil initial shedding                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair shedding                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil temporary worsening                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair fall                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair fall out                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 9 out; drop reasons: {'drug_match_only': 6}
+
+── Collector: maladiesrares ───────────────────────────────────────────────────────────────────────
+  [original   ] 'minoxidil hair loss                                 ' → status=ok          raw= 15 kept(after in-source dedup)= 15
+  [synonym    ] 'minoxidil                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair loss                                           ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'rogaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'regaine                                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'hair shedding                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [synonym    ] 'alopecia                                            ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Vasodilator Agents                                  ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Diseases                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [mesh       ] 'Hair Follicle                                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair loss                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil initial shedding                          ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair shedding                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil temporary worsening                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil increased hair fall                       ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  [colloquial ] 'minoxidil hair fall out                             ' → status=SKIPPED (cap reached) raw=  0 kept(after in-source dedup)=  0
+  NORMALISATION AUDIT (15 items): title=15/15 (100%), text=15/15 (100%), source_url=15/15 (100%), external_id=15/15 (100%), treatment=0/15 (0%), condition=0/15 (0%), date=15/15 (100%), topic=15/15 (100%), metadata=15/15 (100%)
+  PER-SOURCE RELEVANCE: 15 in → 7 out; drop reasons: {'drug_match_only': 8}
+
+── GLOBAL STAGES ──────────────────────────────────────────────────────────────────────────────────
+  cross-source pool: 75 → deduplicate() → 75
+  relevance_filter(global): 75 in → 25 out; survivors by source: {'maladiesrares': 7, 'hairlosstalk': 5, 'hairlossexperiences': 9, 'calvizie': 4}
+
+── ITEM DIAGNOSTICS (top-5 KEPT + first 5 DROPPED) ────────────────────────────────────────────────
+ # source              title                                        text? treat? meta?  score  verdict/reason
+ 1 maladiesrares       Pelade universelle • Mon expérience avec l   yes   -      yes    0.843  KEPT drug+event_match (drug=['minoxidil']; event=['cheveux', 'chute']; toke
+ 2 hairlosstalk        Should I take finasteride again or should    yes   -      yes    0.797  KEPT drug+event_match (drug=['minoxidil']; event=['hair loss']; tokens=3)
+ 3 hairlossexperiences Finasteride treatment in the UK              yes   -      yes    0.731  KEPT drug+event_match (drug=['regaine']; event=['bald']; tokens=1)
+ 4 hairlossexperiences I feel like I'm doomed. That's my story.     yes   -      yes    0.731  KEPT drug+event_match (drug=['minoxidil']; event=['bald']; tokens=1)
+ 5 hairlosstalk        Oral bicalutamide Log - HemingwayTheMercen   yes   -      yes    0.517  KEPT drug+event_match (drug=[]; event=['hair loss', 'thinning']; tokens=2)
+ 6 openfda_faers       FAERS report 10004345 — Retinal detachment   yes   yes    yes    0.150  DROP drug_match_only (drug=['minoxidil']; event_missing — queried event not
+ 7 openfda_faers       FAERS report 10005497 — Nephrogenic system   yes   yes    yes    0.150  DROP drug_match_only (drug=['minoxidil']; event_missing — queried event not
+ 8 openfda_faers       FAERS report 10010762 — Angina pectoris; I   yes   yes    yes    0.150  DROP drug_match_only (drug=['minoxidil']; event_missing — queried event not
+ 9 openfda_faers       FAERS report 10024887 — Encephalopathy; Pn   yes   yes    yes    0.150  DROP drug_match_only (drug=['minoxidil']; event_missing — queried event not
+10 openfda_faers       FAERS report 10033185 — Nephrogenic system   yes   yes    yes    0.150  DROP drug_match_only (drug=['minoxidil']; event_missing — queried event not
+

@@ -1,0 +1,59 @@
+name: UMLS live test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      query:
+        description: "Override live query for the UMLS test"
+        required: false
+        default: "perdita di capelli dopo finasteride, esperienze dei pazienti"
+
+permissions:
+  contents: read
+
+jobs:
+  umls-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+      - name: UMLS offline tests (no API key required)
+        env:
+          HLEO_VOCAB_ENABLED: "0"
+        run: python -m pytest tests/test_vocab_umls.py tests/test_vocab.py -q
+
+  umls-live:
+    runs-on: ubuntu-latest
+    needs: umls-offline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+      - name: UMLS live trichology query test
+        env:
+          UMLS_API_KEY: ${{ secrets.UMLS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          HLEO_LLM_MODEL: ${{ vars.HLEO_LLM_MODEL }}
+          HLEO_LIVE_QUERY: ${{ github.event.inputs.query }}
+          DATABASE_URL: sqlite://
+          HLEO_RWE_INTENT_SCORING: "1"
+        run: |
+          python -c "import os; print('UMLS_API_KEY configured:', 'yes' if os.getenv('UMLS_API_KEY') else 'no')"
+          python scripts/umls_live_test.py
+      - name: Upload live report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: umls-live-report
+          path: /tmp/umls_live_report.json
+          if-no-files-found: warn
