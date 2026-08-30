@@ -178,7 +178,7 @@ class LLMConfig(Base):
     __tablename__ = "hleo_llm_config"
 
     id = Column(Integer, primary_key=True, index=True)
-    provider = Column(String, default="auto")
+    provider = Column(String, default="")
     protocol = Column(String, default="OpenAI-compatible")
     api_key_encrypted = Column(Text, nullable=True)
     base_url = Column(String, default="")

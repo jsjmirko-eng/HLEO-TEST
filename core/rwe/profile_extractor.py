@@ -64,7 +64,7 @@ class RWEProfileExtractor:
         or LLMCallError/QuotaExhaustedError from the guard.
         """
         if self._client is None:
-            raise RuntimeError("OPENAI_API_KEY is not set.")
+            raise RuntimeError("LLM configuration is not set or incomplete.")
 
         from core.llm_guard import call_llm_json
 

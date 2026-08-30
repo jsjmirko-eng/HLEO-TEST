@@ -4436,7 +4436,7 @@ async function loadAdminLLMConfig() {
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    providerEl.value = d.provider || 'auto';
+    providerEl.value = d.provider || '';
     baseUrlEl.value = d.base_url || '';
     modelEl.value = d.model || '';
     apiKeyEl.value = '';
@@ -4451,7 +4451,7 @@ async function loadAdminLLMConfig() {
 }
 
 async function saveAdminLLMConfig() {
-  const provider = document.getElementById('adminLlmProvider')?.value || 'auto';
+  const provider = document.getElementById('adminLlmProvider')?.value || '';
   const apiKey = document.getElementById('adminLlmApiKey')?.value || '';
   const baseUrl = document.getElementById('adminLlmBaseUrl')?.value || '';
   const model = document.getElementById('adminLlmModel')?.value || '';
@@ -4492,7 +4492,7 @@ async function saveAdminLLMConfig() {
 }
 
 async function testAdminLLMConfig() {
-  const provider = document.getElementById('adminLlmProvider')?.value || 'auto';
+  const provider = document.getElementById('adminLlmProvider')?.value || '';
   const apiKey = document.getElementById('adminLlmApiKey')?.value || '';
   const baseUrl = document.getElementById('adminLlmBaseUrl')?.value || '';
   const model = document.getElementById('adminLlmModel')?.value || '';

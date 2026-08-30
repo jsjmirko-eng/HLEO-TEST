@@ -214,7 +214,7 @@ class AdminLoginRequest(BaseModel):
 
 
 class LLMConfigRequest(BaseModel):
-    provider: Optional[str] = "auto"
+    provider: Optional[str] = ""
     api_key: Optional[str] = None
     base_url: Optional[str] = ""
     model: Optional[str] = ""
@@ -334,7 +334,7 @@ def admin_status(request: Request, _: str = Depends(require_admin)):
 def get_llm_config(_: str = Depends(require_admin)):
     """Return the active LLM configuration without exposing the secret value."""
     cfg = get_active_llm_settings()
-    provider = (cfg.get("provider") or "auto").strip() or "auto"
+    provider = (cfg.get("provider") or "").strip()
     protocol = (cfg.get("protocol") or "OpenAI-compatible").strip() or "OpenAI-compatible"
     return {
         "provider": provider,
@@ -353,7 +353,7 @@ def save_llm_config(
     _: str = Depends(require_admin),
 ):
     """Persist the central LLM config. API keys are encrypted before storage."""
-    provider = (body.provider or "auto").strip() or "auto"
+    provider = (body.provider or "").strip()
     protocol = (body.protocol or "OpenAI-compatible").strip() or "OpenAI-compatible"
     base_url = (body.base_url or "").strip()
     model = (body.model or "").strip()
@@ -394,28 +394,20 @@ def test_llm_config(
     validated by using the configured API key, Base URL, and model without
     hardcoding specific provider branches in the admin route.
     """
-    provider = (body.provider or "auto").strip() or "auto"
+    provider = (body.provider or "").strip()
     protocol = (body.protocol or "OpenAI-compatible").strip() or "OpenAI-compatible"
     base_url = (body.base_url or "").strip()
     model = (body.model or "").strip()
     api_key = (body.api_key or "").strip()
 
-    if provider.lower() in {"perplexity", "openai"} and not api_key:
-        raise HTTPException(status_code=400, detail="API key is required for this provider.")
-    if provider.lower() == "local" and not base_url:
-        raise HTTPException(status_code=400, detail="Base URL is required for local OpenAI-compatible endpoints.")
-    if protocol.lower() == "openai-compatible" and provider.lower() not in {"auto", "default", "none"} and not base_url:
-        raise HTTPException(status_code=400, detail="Custom OpenAI-compatible provider requires a Base URL.")
-    if provider.lower() not in {"auto", "default", "none"} and not (api_key or base_url):
-        raise HTTPException(status_code=400, detail="API key or Base URL is required for the configured provider.")
+    if provider and not base_url:
+        raise HTTPException(status_code=400, detail="A custom provider requires a Base URL.")
+    if not base_url and not api_key:
+        raise HTTPException(status_code=400, detail="LLM configuration requires either an API key or a Base URL.")
 
     try:
         from openai import OpenAI
         client = OpenAI(api_key=api_key or "generic", base_url=base_url or None)
-        # For custom OpenAI-compatible endpoints, a missing base_url must fail
-        # explicitly rather than silently defaulting to api.openai.com.
-        if protocol.lower() == "openai-compatible" and provider.lower() not in {"auto", "default", "none"} and not base_url:
-            raise ValueError("Custom OpenAI-compatible provider requires a Base URL.")
         client.models.list()
         return {"ok": True, "provider": provider, "message": "Connection successful."}
     except Exception as exc:

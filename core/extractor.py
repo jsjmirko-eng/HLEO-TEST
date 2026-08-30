@@ -22,7 +22,7 @@ class LLMExtractor:
     def extract(self, timeline_json: str):
         if self.client is None:
             raise RuntimeError(
-                "OPENAI_API_KEY is not set. Cannot perform LLM extraction."
+                "LLM configuration is not set or incomplete. Cannot perform extraction."
             )
 
         from core.schemas import ExtractedClinicalProfile

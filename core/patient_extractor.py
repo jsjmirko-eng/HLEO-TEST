@@ -34,7 +34,7 @@ class PatientExperienceExtractor:
             RuntimeError if API key not set.
         """
         if self.client is None:
-            raise RuntimeError("OPENAI_API_KEY is not set.")
+            raise RuntimeError("LLM configuration is not set or incomplete.")
 
         from core.patient_schema import PatientExperienceProfile
 

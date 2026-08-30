@@ -557,7 +557,7 @@ def run_pipeline(q: str = Query(...), db: Session = Depends(get_db),
 
     extractor = ArticleExtractor()
     if extractor.client is None:
-        return {"error": "OPENAI_API_KEY not set — cannot run LLM extraction."}
+        return {"error": "LLM configuration is not set or incomplete — cannot run extraction."}
 
     import datetime as _dt  # local alias to avoid shadowing module-level names
 
@@ -871,8 +871,8 @@ def ingest_experiences(q: str = Query(...), db: Session = Depends(get_db)):
     if extractor.client is None:
         return {
             "query": q, "collected": 0, "saved": 0, "errors": 0, "results": [],
-            "reddit_status": "no_openai_key",
-            "reddit_reason": "OPENAI_API_KEY is not set — LLM extraction is disabled.",
+            "reddit_status": "no_llm_config",
+            "reddit_reason": "LLM configuration is not set or incomplete — extraction is disabled.",
         }
 
     # ── Orchestrate: detect language, translate to scientific English if needed ──
@@ -1063,7 +1063,7 @@ def rwe_extract_profile(body: RWEExtractRequest, db: Session = Depends(get_db)):
 
     from core.llm_provider import llm_available
     if not llm_available():
-        return {"error": "OPENAI_API_KEY not set."}
+        return {"error": "LLM configuration is not set or incomplete."}
 
     from core.rwe.profile_extractor import RWEProfileExtractor
     extractor = RWEProfileExtractor()
@@ -1172,8 +1172,8 @@ def rwe_extract_batch(body: RWEBatchExtractRequest, db: Session = Depends(get_db
             "profiles_updated": 0,
             "skipped": 0,
             "errors": found,
-            "error_details": [{"error": "OPENAI_API_KEY not set."}],
-            "message": "OPENAI_API_KEY non configurata — estrazione LLM non disponibile.",
+            "error_details": [{"error": "LLM configuration is not set or incomplete."}],
+            "message": "Configurazione LLM non impostata o incompleta — estrazione LLM non disponibile.",
         }
 
     from core.rwe.profile_extractor import RWEProfileExtractor
