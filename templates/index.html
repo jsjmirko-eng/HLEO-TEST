@@ -4296,18 +4296,19 @@ const _CAT_CLASS = { scientific:'scientific', rwe_experience:'rwe', pharmacovigi
 
 // ── Admin auth token management ─────────────────────────────────────────────
 // The token is a stateless HMAC-signed string issued by POST /admin/login.
-// Stored in sessionStorage (cleared when the browser tab closes) — NEVER in
-// localStorage or a cookie. No credentials are hardcoded in the client.
+// Stored in localStorage (persists across browser sessions) for convenience.
+// No credentials are hardcoded in the client.
+// Use _clearAdminToken() on logout to remove the persisted token.
 const _ADMIN_TOKEN_KEY = 'hleo_admin_token';
 
 function _getAdminToken() {
-  try { return sessionStorage.getItem(_ADMIN_TOKEN_KEY) || null; } catch { return null; }
+  try { return localStorage.getItem(_ADMIN_TOKEN_KEY) || null; } catch { return null; }
 }
 function _setAdminToken(token) {
-  try { sessionStorage.setItem(_ADMIN_TOKEN_KEY, token); } catch {}
+  try { localStorage.setItem(_ADMIN_TOKEN_KEY, token); } catch {}
 }
 function _clearAdminToken() {
-  try { sessionStorage.removeItem(_ADMIN_TOKEN_KEY); } catch {}
+  try { localStorage.removeItem(_ADMIN_TOKEN_KEY); } catch {}
 }
 
 // Build the Authorization header for admin fetches (or null if not authed).
@@ -4355,7 +4356,8 @@ function _showAdminLoginPanel(show) {
 
 async function adminLogin(ev) {
   // Login form submit handler — POSTs credentials to /admin/login and stores
-  // the returned Bearer token in sessionStorage. No credentials are persisted.
+  // the returned Bearer token in localStorage (persists across sessions).
+  // No credentials are persisted.
   if (ev) ev.preventDefault();
   const user = document.getElementById('adminLoginUser')?.value || '';
   const pass = document.getElementById('adminLoginPass')?.value || '';
@@ -4399,7 +4401,7 @@ async function adminLogin(ev) {
 
 function adminLogout() {
   // Client-side logout: discard the token. The token is stateless (HMAC-signed),
-  // so server-side revocation is not possible — clearing sessionStorage is the
+  // so server-side revocation is not possible — clearing localStorage is the
   // real logout. We best-effort notify the server (with the token still in hand)
   // for API symmetry, but ignore any error.
   const hdr = _adminAuthHeader() || {};
