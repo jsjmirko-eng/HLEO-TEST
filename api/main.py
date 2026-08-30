@@ -1531,7 +1531,7 @@ def assistant_chat(
     from core.llm_provider import build_provider
     client = build_provider()
     if client is None:
-        return {"error": "OPENAI_API_KEY not set."}
+        return {"error": "LLM configuration is not set or incomplete."}
 
     # ── Session management ──────────────────────────────────────────
     import json as _json
@@ -2421,7 +2421,7 @@ def assistant_compare(body: CompareRequest, db: Session = Depends(get_db)):
     from core.llm_provider import build_provider
     client = build_provider()
     if client is None:
-        return {"error": "OPENAI_API_KEY not set."}
+        return {"error": "LLM configuration is not set or incomplete."}
 
     if not (body.scientific_articles or body.rwe_evidence or getattr(body, 'clinical_profile_episode_ids', None) or getattr(body, 'rwe_profile_episode_ids', None)):
         return {"error": "No evidence provided for comparison."}

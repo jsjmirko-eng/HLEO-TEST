@@ -254,7 +254,7 @@ def test_assistant_accepts_rwe_evidence_only(client):
     # Without OPENAI_API_KEY the endpoint returns 200 with an error dict
     assert r.status_code == 200
     body = r.json()
-    # No OPENAI key in test env → returns {"error": "OPENAI_API_KEY not set."}
+    # No LLM config in test env → returns {"error": "LLM configuration is not set or incomplete."}
     assert "error" in body or "response" in body
 
 

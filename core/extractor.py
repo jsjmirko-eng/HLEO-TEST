@@ -15,8 +15,8 @@ class LLMExtractor:
         self.client = build_provider()
         if self.client is None:
             logger.warning(
-                "No LLM provider configured (OPENAI_API_KEY / PERPLEXITY_API_KEY) "
-                "— LLM extraction disabled. Reddit posts will be skipped."
+                "No LLM provider configured — LLM extraction disabled. "
+                "Configure api_key/base_url/model via the Admin UI or environment variables."
             )
 
     def extract(self, timeline_json: str):

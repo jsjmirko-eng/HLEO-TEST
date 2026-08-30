@@ -65,7 +65,7 @@ class TestCompareNoKey:
     def test_no_key_returns_error(self, client):
         resp = client.post("/assistant/compare", json=_make_body())
         assert resp.status_code == 200
-        assert resp.json()["error"] == "OPENAI_API_KEY not set."
+        assert resp.json()["error"] == "LLM configuration is not set or incomplete."
 
 
 class TestCompareNoEvidence:

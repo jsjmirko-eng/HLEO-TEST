@@ -48,7 +48,7 @@ class TestRWEExtract:
     def test_no_key_returns_error(self, client):
         resp = client.post("/rwe/extract", json=_forum_body())
         assert resp.status_code == 200
-        assert resp.json()["error"] == "OPENAI_API_KEY not set."
+        assert resp.json()["error"] == "LLM configuration is not set or incomplete."
 
     def test_happy_path_returns_profile(self, client, monkeypatch):
         """RWE extraction returns the structured profile but does not persist it automatically."""

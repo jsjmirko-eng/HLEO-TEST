@@ -2,7 +2,7 @@
 HLEO — LLM call guard (cost protection + bounded retry)
 ========================================================
 
-Centralises EVERY OpenAI call so retry cannot multiply across layers.
+Centralises EVERY LLM call so retry cannot multiply across layers.
 
 Hard rules (enforced everywhere this module is used):
     MAX_TOTAL_ATTEMPTS = 5
@@ -10,40 +10,37 @@ Hard rules (enforced everywhere this module is used):
         No caller/layer may add its own retry on top — doing so would breach
         the absolute cap. The guard is the ONLY retry boundary.
 
-429 handling (per the master spec):
+429 handling:
     - insufficient_quota / credit_balance_exhausted  → NO retry, raise
-      QuotaExhaustedError immediately (credito esaurito).
+      QuotaExhaustedError immediately.
     - rate_limit_exceeded (temporary)               → retry with backoff,
       up to MAX_TOTAL_ATTEMPTS.
     - other transient errors                       → retry, up to the cap.
     - JSON/schema validation errors                → retry, up to the cap
       (temperature is nudged on retries to break a stuck malformed response).
 
-JSON output hardening (local-first support):
+JSON output hardening:
     - _extract_json() sanitises LLM output before parsing: markdown fences,
       prose wrapping (first balanced {...}/[...] block), invalid backslash
       escapes from local models. Never alters the parsed data.
-    - Optional local-first routing via env (HLEO_LOCAL_LLM_URL …) sends
-      intermediate operations to a local OpenAI-compatible server while
-      "final" user-facing operations stay on OpenAI. With
-      HLEO_LOCAL_LLM_FALLBACK=1 (default) the LAST attempt of the bounded
-      retry loop falls back to the original OpenAI client if the local
-      server keeps failing — the absolute 5-attempt cap still holds.
-      Unset env → behaviour identical to plain OpenAI mode.
 
-Optional Perplexity provider (HLEO_LLM_PROVIDER=perplexity):
-    - OpenAI-compatible Sonar API becomes the primary provider; OpenAI stays
-      as last-attempt fallback (HLEO_PERPLEXITY_FALLBACK=1, default).
-    - Perplexity rejects response_format={"type": "json_object"} (400) → the
-      guard drops it on Perplexity-routed calls and _extract_json() parses.
-    - Intermediate ops default to HLEO_PERPLEXITY_MODEL (sonar) with web
-      search disabled (HLEO_PERPLEXITY_DISABLE_SEARCH=1) — HLEO retrieval is
-      PubMed/EuropePMC/CT.gov/RWE collectors, not the LLM. "Final" ops use
-      HLEO_PERPLEXITY_MODEL_FINAL (sonar-pro) with search ON.
-    - Every call (success or error) is recorded via _record_call():
-      operation, provider, model, tokens, Perplexity-reported cost, latency,
-      fallback flag. Dumped as JSONL at exit (HLEO_LLM_CALL_LOG).
-      API keys are never logged.
+Provider-agnostic runtime:
+    - The runtime is driven exclusively by the configured LLM settings:
+      api_key, base_url, model, protocol.
+    - Provider names are free-form metadata labels only.
+    - No hardcoded provider branching or special routing based on provider name.
+
+Optional local-first routing via env (HLEO_LOCAL_LLM_URL …):
+    - Sends intermediate operations to a local OpenAI-compatible server while
+      "final" user-facing operations stay on the configured provider.
+    - With HLEO_LOCAL_LLM_FALLBACK=1 (default) the LAST attempt of the bounded
+      retry loop falls back to the original client if the local server keeps
+      failing — the absolute 5-attempt cap still holds. Unset env → behaviour
+      identical to plain OpenAI-compatible mode.
+
+Every call (success or error) is recorded via _record_call():
+    operation, provider, model, tokens, cost, latency, fallback flag.
+    Dumped as JSONL at exit (HLEO_LLM_CALL_LOG). API keys are never logged.
 
 Backoff: exponential, capped, with light jitter:
     delay = min(BASE_DELAY * 2**attempt, MAX_DELAY) * (1 ± 0.15)
@@ -274,70 +271,6 @@ def _route(operation: str, client: Any, model: str):
     return _get_local_client(), _LOCAL_MODEL, None, None, "local"
 
 
-# ── Optional Perplexity provider (OpenAI-compatible, fallback OpenAI) ────────
-# OFF by default: HLEO_LLM_PROVIDER unset/≠"perplexity" → behaviour unchanged.
-#
-#   HLEO_LLM_PROVIDER="perplexity"     activate Perplexity as primary provider
-#   PERPLEXITY_API_KEY                 required (env only, never logged)
-#   HLEO_PERPLEXITY_MODEL              model for intermediate ops (default sonar)
-#   HLEO_PERPLEXITY_MODEL_FINAL        model for "final" ops (default sonar-pro)
-#   HLEO_PERPLEXITY_OPS                comma-separated ops to route; default: all
-#   HLEO_PERPLEXITY_DISABLE_SEARCH     "1" (default): web search OFF for
-#                                      intermediate ops (HLEO retrieval is
-#                                      PubMed/EuropePMC/CT.gov, not the LLM);
-#                                      "final" ops keep search ON.
-#   HLEO_PERPLEXITY_FALLBACK           "1" (default): last attempt → OpenAI.
-#
-# Perplexity rejects response_format={"type":"json_object"} (400); when a call
-# is routed to Perplexity the guard drops that field — _extract_json() then
-# parses the plain-text output (verified live: relation extraction works).
-_PPX_ENABLED = os.getenv("HLEO_LLM_PROVIDER", "").strip().lower() == "perplexity"
-_PPX_API_KEY = os.getenv("PERPLEXITY_API_KEY", "").strip()
-_PPX_BASE_URL = "https://api.perplexity.ai"
-_PPX_MODEL = os.getenv("HLEO_PERPLEXITY_MODEL", "sonar")
-_PPX_MODEL_FINAL = os.getenv("HLEO_PERPLEXITY_MODEL_FINAL", "sonar-pro")
-_PPX_OPS_ENV = os.getenv("HLEO_PERPLEXITY_OPS", "")
-_PPX_OPS = ({o.strip() for o in _PPX_OPS_ENV.split(",") if o.strip()}
-            if _PPX_OPS_ENV.strip() else None)
-_PPX_DISABLE_SEARCH = os.getenv("HLEO_PERPLEXITY_DISABLE_SEARCH", "1") != "0"
-_PPX_FALLBACK = os.getenv("HLEO_PERPLEXITY_FALLBACK", "1") != "0"
-# Perplexity Sonar emits longer structured outputs than gpt-4o at equal
-# max_tokens (observed: scientific_synthesis truncated at ~10k chars with
-# max_tokens=2200 → 4 consecutive JSON parse failures). Raise the floor for
-# Perplexity-routed calls only; callers/OpenAI behaviour unchanged.
-_PPX_MIN_MAX_TOKENS = int(os.getenv("HLEO_PERPLEXITY_MIN_MAX_TOKENS", "8000"))
-
-_ppx_client: Any = None
-
-
-def _get_ppx_client() -> Any:
-    global _ppx_client
-    if _ppx_client is None:
-        from openai import OpenAI
-        _ppx_client = OpenAI(
-            base_url=_PPX_BASE_URL,
-            api_key=_PPX_API_KEY,
-            timeout=float(os.getenv("HLEO_PERPLEXITY_TIMEOUT", "180")),
-        )
-    return _ppx_client
-
-
-def _route_ppx(operation: str, client: Any, model: str):
-    """Return (client, model, fb_client, fb_model, route_name, is_final)."""
-    if not (_PPX_ENABLED and _PPX_API_KEY):
-        return client, model, None, None, None, False
-    # Guard: caller already points at Perplexity.
-    if "perplexity.ai" in str(getattr(client, "base_url", "")):
-        return client, model, None, None, None, False
-    if _PPX_OPS is not None and operation not in _PPX_OPS:
-        return client, model, None, None, None, False
-    is_final = operation in _FINAL_OPS
-    ppx_model = _PPX_MODEL_FINAL if is_final else _PPX_MODEL
-    if _PPX_FALLBACK:
-        return _get_ppx_client(), ppx_model, client, model, "perplexity", is_final
-    return _get_ppx_client(), ppx_model, None, None, "perplexity", is_final
-
-
 # ── Per-call observability (provider/model/tokens/cost/latency/fallback) ────
 # In-memory ring buffer + JSONL dump at exit (HLEO_LLM_CALL_LOG, default
 # /tmp/hleo_llm_calls.jsonl). API keys are never recorded.
@@ -421,7 +354,8 @@ def _unwrap_provider(client: Any, model: str):
     fb = getattr(client, "fallback", None)
     fallback = None
     if fb is not None:
-        fallback = (fb.client, resolve_model(fb.name, model))
+        fb_name = getattr(fb, "name", "fallback") or "fallback"
+        fallback = (fb.client, resolve_model(fb_name, model), fb_name)
     return (client.client, resolved, provider_name, fallback)
 
 
@@ -435,18 +369,10 @@ def _provider_kwargs(provider_name: str, model: str, messages: list,
     }
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
-    if provider_name == "perplexity" and kwargs.get("max_tokens") is not None:
-        kwargs["max_tokens"] = max(kwargs["max_tokens"], _PPX_MIN_MAX_TOKENS)
-    # json_mode requests a bare JSON object (guard contract for call_llm_json);
-    # Perplexity rejects response_format json_object → omitted there.
     if json_mode:
-        if provider_name != "perplexity":
-            kwargs["response_format"] = {"type": "json_object"}
+        kwargs["response_format"] = {"type": "json_object"}
     elif response_format is not None:
-        if provider_name == "perplexity" and response_format.get("type") == "json_object":
-            pass
-        else:
-            kwargs["response_format"] = response_format
+        kwargs["response_format"] = response_format
     return kwargs
 
 
@@ -466,9 +392,9 @@ def _run_provider_loop(*, operation: str, raw_client: Any, model: str,
     """
     stages: list = [(raw_client, model, provider_name)]
     if fallback is not None:
-        fb_client, fb_model = fallback
+        fb_client, fb_model, fb_name = fallback
         if fb_client is not None:
-            stages.append((fb_client, fb_model, "openai"))
+            stages.append((fb_client, fb_model, fb_name))
 
     last_exc: Optional[Exception] = None
     last_kind: str = "other"
@@ -595,10 +521,6 @@ def call_llm(
         )
 
     client, model, fb_client, fb_model, route_name = _route(operation, client, model)
-    is_final = False
-    if route_name is None:
-        client, model, fb_client, fb_model, route_name, is_final = _route_ppx(
-            operation, client, model)
 
     last_exc: Optional[Exception] = None
     last_kind: str = "other"
@@ -606,19 +528,19 @@ def call_llm(
     for attempt in range(MAX_TOTAL_ATTEMPTS):
         is_fallback = False
         # Last-resort: primary provider kept failing → final attempt on the
-        # original (OpenAI) client. Absolute cap still holds.
+        # fallback client (from local-first routing). Absolute cap still holds.
         if fb_client is not None and attempt == MAX_TOTAL_ATTEMPTS - 1 and last_exc is not None:
             logger.warning(
-                "%s: %s kept failing — final attempt falls back to OpenAI (%s)",
+                "%s: %s kept failing — final attempt falls back to configured provider (%s)",
                 operation, route_name or "provider", fb_model,
             )
             _ROUTING_STATS["fallbacks"] += 1
             active_client, active_model = fb_client, fb_model
-            active_provider = "openai"
+            active_provider = route_name or "fallback"
             is_fallback = True
         else:
             active_client, active_model = client, model
-            active_provider = route_name or "openai"
+            active_provider = route_name or "openai-compatible"
         try:
             kwargs: dict = {
                 "model": active_model,
@@ -627,22 +549,8 @@ def call_llm(
             }
             if max_tokens is not None:
                 kwargs["max_tokens"] = max_tokens
-            if active_provider == "perplexity" and kwargs.get("max_tokens") is not None:
-                kwargs["max_tokens"] = max(kwargs["max_tokens"], _PPX_MIN_MAX_TOKENS)
             if response_format is not None and not is_fallback:
-                # Perplexity rejects {"type": "json_object"} (400) → drop it;
-                # _extract_json() parses the plain-text output downstream.
-                if active_provider == "perplexity":
-                    if response_format.get("type") == "json_object":
-                        pass
-                    else:
-                        kwargs["response_format"] = response_format
-                else:
-                    kwargs["response_format"] = response_format
-            if active_provider == "perplexity":
-                disable = _PPX_DISABLE_SEARCH and not is_final
-                if disable:
-                    kwargs["extra_body"] = {"disable_search": True}
+                kwargs["response_format"] = response_format
 
             if route_name == "local" and active_client is client:
                 _ROUTING_STATS["local_calls"] += 1
@@ -705,17 +613,13 @@ def call_llm_json(
     max_tokens: Optional[int] = None,
     operation: str = "llm_json_call",
 ) -> dict:
-    """Call OpenAI, parse JSON, with the same single bounded retry policy.
+    """Call LLM, parse JSON, with the same single bounded retry policy.
 
     JSON / schema validation failures ARE retryable (count toward the cap).
     On the final attempt the raw text is attached to the error so the caller
     can surface it.
     """
     client, model, fb_client, fb_model, route_name = _route(operation, client, model)
-    is_final = False
-    if route_name is None:
-        client, model, fb_client, fb_model, route_name, is_final = _route_ppx(
-            operation, client, model)
 
     # LLMProvider (core.llm_provider) path: unwrap to the raw SDK client and
     # honour the one-way fallback chain + resolve_model mapping. A plain SDK
@@ -736,37 +640,28 @@ def call_llm_json(
 
     for attempt in range(MAX_TOTAL_ATTEMPTS):
         is_fallback = False
-        # Last-resort: primary provider kept failing → final attempt on OpenAI.
+        # Last-resort: primary provider kept failing → final attempt on fallback.
         if fb_client is not None and attempt == MAX_TOTAL_ATTEMPTS - 1 and last_exc is not None:
             logger.warning(
-                "%s: %s returned unusable output — final attempt falls back to OpenAI (%s)",
+                "%s: %s returned unusable output — final attempt falls back to configured provider (%s)",
                 operation, route_name or "provider", fb_model,
             )
             _ROUTING_STATS["fallbacks"] += 1
             active_client, active_model = fb_client, fb_model
-            active_provider = "openai"
+            active_provider = route_name or "fallback"
             is_fallback = True
         else:
             active_client, active_model = client, model
-            active_provider = route_name or "openai"
+            active_provider = route_name or "openai-compatible"
         try:
             kwargs: dict = {
                 "model": active_model,
                 "messages": messages,
                 "temperature": temperature,
             }
-            # json_object = constrained output on OpenAI/llama.cpp; Perplexity
-            # rejects it (400) → dropped there, _extract_json() parses below.
-            if active_provider != "perplexity":
-                kwargs["response_format"] = {"type": "json_object"}
+            kwargs["response_format"] = {"type": "json_object"}
             if max_tokens is not None:
                 kwargs["max_tokens"] = max_tokens
-            if active_provider == "perplexity" and kwargs.get("max_tokens") is not None:
-                kwargs["max_tokens"] = max(kwargs["max_tokens"], _PPX_MIN_MAX_TOKENS)
-            if active_provider == "perplexity":
-                disable = _PPX_DISABLE_SEARCH and not is_final
-                if disable:
-                    kwargs["extra_body"] = {"disable_search": True}
 
             if route_name == "local" and active_client is client:
                 _ROUTING_STATS["local_calls"] += 1

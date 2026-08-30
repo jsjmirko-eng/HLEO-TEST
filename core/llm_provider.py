@@ -21,10 +21,6 @@ from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
-PERPLEXITY_BASE_URL = "https://api.perplexity.ai"
-DEFAULT_PERPLEXITY_MODEL = "sonar-pro"
-DEFAULT_PERPLEXITY_MODEL_MINI = "sonar"
-
 
 @dataclass
 class LLMProvider:
