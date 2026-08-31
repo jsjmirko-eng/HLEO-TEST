@@ -35,7 +35,7 @@ from core.database import get_db, engine, Base
 from core.models import (
     ClinicalProfile, RawSource, AuditLog,
     PatientExperience, SourceAttribution, ChatSession, ChatMessage,
-    RWEProfile,
+    RWEProfile, LLMConfig,
 )
 from api.partners import router as rwe_router
 from api.admin import router as admin_router
