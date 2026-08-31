@@ -1,6 +1,5 @@
 __pycache__/
 *.pyc
-.env
 .agents_tmp/
 
 # Local test sqlite DB
