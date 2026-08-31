@@ -65,21 +65,34 @@ def _xor_decrypt(payload: str) -> str:
 
 def _get_db_llm_config() -> Optional[dict]:
     try:
-        from core.database import SessionLocal
+        from core.database import SessionLocal, engine, Base
         from core.models import LLMConfig
+        # Ensure table exists (handles case where app started before LLMConfig was registered)
+        Base.metadata.create_all(bind=engine, tables=[LLMConfig.__table__])
         db = SessionLocal()
         try:
             row = db.execute(select(LLMConfig).order_by(LLMConfig.id.desc())).scalar_one_or_none()
-            if not row or not row.enabled:
+            if not row:
+                logger.info("LLM config: no row found in hleo_llm_config table")
+                return None
+            if not row.enabled:
+                logger.info("LLM config: row found but disabled")
                 return None
             provider = (row.provider or "").strip()
             protocol = (getattr(row, "protocol", None) or "OpenAI-compatible").strip() or "OpenAI-compatible"
+            api_key_encrypted = row.api_key_encrypted or ""
+            api_key = _xor_decrypt(api_key_encrypted)
+            logger.info(
+                "LLM config loaded from DB: provider=%s, base_url=%s, model=%s, api_key_present=%s",
+                provider, (row.base_url or "").strip()[:50], (row.model or "").strip(),
+                bool(api_key_encrypted)
+            )
             return {
                 "provider": provider,
                 "protocol": protocol,
                 "base_url": (row.base_url or "").strip(),
                 "model": (row.model or "").strip(),
-                "api_key": _xor_decrypt(row.api_key_encrypted or ""),
+                "api_key": api_key,
             }
         finally:
             db.close()
@@ -166,6 +179,13 @@ def build_provider(prefer: Optional[str] = None) -> Optional[LLMProvider]:
     api_key = (active.get("api_key") or env_cfg["api_key"]).strip()
     base_url = (active.get("base_url") or env_cfg["base_url"]).strip()
     provider_name = (prefer or active.get("provider") or env_cfg["provider"] or "").strip()
+
+    logger.info(
+        "build_provider: provider=%s, base_url=%s, model=%s, api_key_present=%s, env_base_url=%s",
+        provider_name, (base_url or "").strip()[:50],
+        (active.get("model") or env_cfg["model"] or "").strip(),
+        bool(api_key), (env_cfg["base_url"] or "").strip()[:50]
+    )
 
     if base_url:
         return _build_generic_openai_compatible(provider_name or "openai-compatible", api_key, base_url)
