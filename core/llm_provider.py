@@ -63,7 +63,80 @@ def _xor_decrypt(payload: str) -> str:
     return decrypt_secret(payload)
 
 
+
 def _get_db_llm_config() -> Optional[dict]:
+    """Fetch the latest persisted LLM configuration from the DB.
+
+    On a fresh SQLite/Postgres database the hleo_llm_config table may not
+    exist yet when this helper is called outside of the main FastAPI app
+    (e.g. scripts/health_check.py). In that case we lazily create ONLY the
+    LLMConfig table and retry once, instead of propagating a noisy
+    "no such table" error.
+    """
+    try:
+        from core.database import SessionLocal
+        from core.models import LLMConfig
+        from sqlalchemy.exc import OperationalError
+    except Exception as exc:
+        logger.warning("LLM config: DB stack unavailable — %s", exc)
+        return None
+
+    db = SessionLocal()
+    try:
+        try:
+            row = db.execute(select(LLMConfig).order_by(LLMConfig.id.desc())).scalar_one_or_none()
+        except OperationalError as exc:
+            msg = str(exc).lower()
+            # SQLite: "no such table"; Postgres: "does not exist" / "undefined table".
+            if "hleo_llm_config" in msg and (
+                "no such table" in msg or "does not exist" in msg or "undefined table" in msg
+            ):
+                try:
+                    # Create only the LLMConfig table if it is missing.
+                    LLMConfig.__table__.create(bind=db.bind, checkfirst=True)
+                    db.commit()
+                except Exception as create_exc:
+                    logger.warning(
+                        "LLM config: auto-create table failed — %s", create_exc
+                    )
+                    return None
+                # Retry the query once after creating the table.
+                try:
+                    row = db.execute(select(LLMConfig).order_by(LLMConfig.id.desc())).scalar_one_or_none()
+                except Exception as retry_exc:
+                    logger.warning(
+                        "LLM config: query after table create failed — %s", retry_exc
+                    )
+                    return None
+            else:
+                logger.warning(
+                    "LLM config: DB query failed — %s", exc
+                )
+                return None
+
+        if not row or not getattr(row, "enabled", True):
+            return None
+
+        provider = (getattr(row, "provider", "") or "").strip()
+        protocol = (getattr(row, "protocol", None) or "OpenAI-compatible").strip() or "OpenAI-compatible"
+        return {
+            "provider": provider,
+            "protocol": protocol,
+            "base_url": (getattr(row, "base_url", "") or "").strip(),
+            "model": (getattr(row, "model", "") or "").strip(),
+            "api_key": _xor_decrypt(getattr(row, "api_key_encrypted", "") or ""),
+        }
+    except Exception as exc:
+        logger.warning("LLM config: unable to load persisted Admin config — %s", exc)
+        return None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def _get_db_llm_config_legacy() -> Optional[dict]:
     try:
         from core.database import SessionLocal
         from core.models import LLMConfig
@@ -167,12 +240,14 @@ def build_provider(prefer: Optional[str] = None) -> Optional[LLMProvider]:
     base_url = (active.get("base_url") or env_cfg["base_url"]).strip()
     provider_name = (prefer or active.get("provider") or env_cfg["provider"] or "").strip()
 
+    # When a Base URL is configured we always use the generic
+    # OpenAI-compatible path. The provider name is metadata only.
     if base_url:
         return _build_generic_openai_compatible(provider_name or "openai-compatible", api_key, base_url)
 
-    if provider_name:
-        raise ValueError(f"Custom OpenAI-compatible provider '{provider_name}' requires a base_url.")
-
+    # No custom Base URL: fall back to the official OpenAI endpoint when an
+    # API key is present. The provider label still flows into LLMProvider.name
+    # but never changes routing behaviour.
     if api_key:
         return _build_default_openai(provider_name or "openai", api_key)
 
