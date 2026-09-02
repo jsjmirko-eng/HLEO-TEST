@@ -256,7 +256,7 @@ class RWEQueryEngine:
 
         # ── 1b. Robust RWE translation fallback (plain-text, JSON-free) ──────
         # The orchestrator's single JSON-mode call can fail on some LLM
-        # providers (observed: Groq gpt-oss-120b json_validate_failed x5),
+        # providers, leaving a non-English query untranslated.
         # leaving a non-English query untranslated. RWE then runs its own
         # robust chain: plain-text LLM → minimal retry → deterministic
         # provider-entity fallback. The orchestrator itself is untouched.
@@ -567,7 +567,10 @@ class RWEQueryEngine:
                         continue
                     base = canonical_query or translated or original
                     # Filter out noisy provider variants (combo products, unrelated MeSH terms, etc.)
-                    if not self._vocab_variant_allowed(source_entity, term, _etype, base, match.provider):
+                    if not self._vocab_variant_allowed(
+                        source_entity, term, _etype, base, match.provider,
+                        match.match_kind,
+                    ):
                         continue
                     expanded_query = self._replace_entity(base, source_entity, term)
                     if expanded_query == base:
@@ -646,12 +649,20 @@ class RWEQueryEngine:
         return unique[:MAX_EXPANDED_QUERIES] if len(unique) > MAX_EXPANDED_QUERIES else unique
 
     @staticmethod
-    def _vocab_variant_allowed(source_entity: str, candidate: str, etype: str, base_query: str, provider: str) -> bool:
+    def _vocab_variant_allowed(
+        source_entity: str,
+        candidate: str,
+        etype: str,
+        base_query: str,
+        provider: str,
+        match_kind: str = "",
+    ) -> bool:
         """Minimal rule-based filter to block noisy provider variants.
 
         Rules (conservative):
         - reject combined product names (contain '/', '+', '&')
-        - require the source_entity token to appear in the candidate
+                - trust provider-validated synonym/translation match kinds even when
+                    the candidate is a semantic equivalent rather than a lexical match
         - strip dosage/form tokens and numeric tokens; require the anchor token
           to cover at least 50% of the remaining tokens
         - if the query expresses causality/adverse cues and the entity is a
@@ -671,8 +682,11 @@ class RWEQueryEngine:
         anchor = (source_entity or "").lower().strip()
         if not anchor:
             return False
-        # Anchor must appear in tokens
-        if anchor not in toks:
+        validated_variant_kinds = {
+            "exact", "canonical", "preferred", "synonym", "normalized",
+            "translation", "colloquial", "orthographic_variant", "abbreviation",
+        }
+        if anchor not in toks and match_kind not in validated_variant_kinds:
             return False
         # Remove dosage/form tokens and pure numeric tokens
         DOSAGE_TOKENS = {
@@ -684,7 +698,7 @@ class RWEQueryEngine:
         if not toks_clean:
             return False
         overlap = sum(1 for t in toks_clean if t == anchor)
-        if overlap / max(1, len(toks_clean)) < 0.5:
+        if anchor in toks and overlap / max(1, len(toks_clean)) < 0.5:
             return False
         # If query looks causal/adverse and entity is condition/symptom, require event terms
         q = (base_query or "").lower()
