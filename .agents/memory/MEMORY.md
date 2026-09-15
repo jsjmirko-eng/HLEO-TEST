@@ -1,0 +1,1 @@
+- [Replit startup configuration](replit-startup.md) — validate `.replit` through Replit and recheck dependency-file diffs after installs.
