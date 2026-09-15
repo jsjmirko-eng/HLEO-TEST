@@ -421,6 +421,7 @@ class HLEOGlobalLimits(Base):
 
     # Concurrency
     pipeline_max_workers        = Column(Integer, default=8)
+    collector_max_workers       = Column(Integer, default=6)
 
     # Relational search judge
     judge_batch_size            = Column(Integer, default=5)

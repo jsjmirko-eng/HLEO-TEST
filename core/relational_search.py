@@ -39,6 +39,7 @@ import json
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -268,15 +269,49 @@ class RelationalSearch:
             "europepmc": (self.europepmc, self._build_epmc_query),
             "clinicaltrials": (self.clinicaltrials, self._build_ct_query),
         }
-        for variant, provenance in expanded:
-            for source, (collector, builder) in collectors.items():
-                query = builder(variant)
-                try:
-                    items = collector.search(query, limit=None)
+
+        # ── Parallel bounded retrieval ────────────────────────────────────────
+        # Build one task per (variant, source) pair — independent HTTP calls.
+        # Bounded by collector_max_workers (default 6) from Global Limits.
+        # Each task is fully isolated: an exception in one does not affect others.
+        # Metadata mutation (match_provenance, matched_queries) happens in the
+        # main thread after all futures complete — no shared-state races.
+
+        def _collect_one(
+            source: str,
+            collector,
+            query: str,
+            provenance: str,
+        ) -> tuple[str, str, str, list]:
+            """Return (source, provenance, query, items). Never raises."""
+            try:
+                items = collector.search(query, limit=None)
+                return source, provenance, query, items
+            except Exception as exc:
+                logger.warning(
+                    "Scientific %s retrieval failed (query=%r): %s",
+                    source, query, exc,
+                )
+                return source, provenance, query, []
+
+        max_workers = _limits().collector_max_workers
+        tasks = [
+            (source, collector, builder(variant), provenance)
+            for variant, provenance in expanded
+            for source, (collector, builder) in collectors.items()
+        ]
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {
+                pool.submit(_collect_one, source, collector, query, provenance): (
+                    source, provenance, query
+                )
+                for source, collector, query, provenance in tasks
+            }
+            for fut in as_completed(futures):
+                source, provenance, query, items = fut.result()
+                if items:
                     stats["query_calls"] += 1
-                except Exception as exc:
-                    logger.warning("Scientific %s retrieval failed: %s", source, exc)
-                    items = []
                 for item in items:
                     item.metadata = dict(item.metadata or {})
                     item.metadata.setdefault("match_provenance", []).append(provenance)

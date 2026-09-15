@@ -567,6 +567,7 @@ class GlobalLimitsRequest(BaseModel):
     backoff_max_s: Optional[float] = None
     backoff_jitter: Optional[float] = None
     pipeline_max_workers: Optional[int] = None
+    collector_max_workers: Optional[int] = None
     judge_batch_size: Optional[int] = None
     judge_pool_per_source: Optional[int] = None
     slot_timeout_s: Optional[float] = None

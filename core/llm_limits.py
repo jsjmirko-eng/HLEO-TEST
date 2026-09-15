@@ -75,6 +75,10 @@ class HLEOLimits:
     # Concurrency — ThreadPoolExecutor for /pipeline/run LLM extraction
     pipeline_max_workers: int = 8
 
+    # Concurrency — bounded ThreadPoolExecutor for scientific collector loop
+    # (variant × source tasks run in parallel up to this limit)
+    collector_max_workers: int = 6
+
     # Relational search — LLM judge budget
     judge_batch_size: int = 5             # articles per judge call
     judge_pool_per_source: int = 10       # top-N judged per source (× 3 sources ≈ 6 calls)
@@ -94,6 +98,7 @@ class HLEOLimits:
         self.backoff_max_s = max(self.backoff_base_s, min(300.0, self.backoff_max_s))
         self.backoff_jitter = max(0.0, min(0.5, self.backoff_jitter))
         self.pipeline_max_workers = max(1, min(32, self.pipeline_max_workers))
+        self.collector_max_workers = max(1, min(32, self.collector_max_workers))
         self.judge_batch_size = max(1, min(20, self.judge_batch_size))
         self.judge_pool_per_source = max(1, min(50, self.judge_pool_per_source))
         self.slot_timeout_s = max(5.0, min(600.0, self.slot_timeout_s))
