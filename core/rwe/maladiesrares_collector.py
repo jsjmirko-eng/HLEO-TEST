@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from datetime import datetime
 from typing import List, Optional, Tuple
 from xml.etree import ElementTree
@@ -104,6 +105,10 @@ class MaladiesRaresCollector:
     def __init__(self, forum_ids: Optional[List[int]] = None) -> None:
         self.forum_ids = forum_ids if forum_ids is not None else _FORUM_IDS
         self._feed_cache: dict = {}
+        # Protects _feed_cache writes against concurrent slug fetches from the
+        # pipeline ThreadPoolExecutor (Opt1 FASE 6B).  Symmetric with the lock
+        # already present in XenForoRSSCollector.
+        self._cache_lock = threading.Lock()
 
     def _meta(self) -> dict:
         return RWE_SOURCES[self.source]
@@ -116,9 +121,10 @@ class MaladiesRaresCollector:
         """
         from core.http_retry import http_get
 
-        if forum_id in self._feed_cache:
-            items, status, reason = self._feed_cache[forum_id]
-            return items[:limit], status, reason
+        with self._cache_lock:
+            if forum_id in self._feed_cache:
+                items, status, reason = self._feed_cache[forum_id]
+                return items[:limit], status, reason
 
         lim = _lim()
         timeout = lim.collector_timeout_s
@@ -188,7 +194,9 @@ class MaladiesRaresCollector:
                 privacy_status="redacted",  # author deliberately not carried
                 metadata={"forum_id": forum_id},
             ))
-        self._feed_cache[forum_id] = (items, STATUS_OK, f"Retrieved {len(items)} {self.source} thread(s) from forum {forum_id}.")
+        result_tuple = (items, STATUS_OK, f"Retrieved {len(items)} {self.source} thread(s) from forum {forum_id}.")
+        with self._cache_lock:
+            self._feed_cache[forum_id] = result_tuple
         return items[:limit], STATUS_OK, f"Retrieved {len(items[:limit])} {self.source} thread(s) from forum {forum_id}."
 
     def search_with_status(

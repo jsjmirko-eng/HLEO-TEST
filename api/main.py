@@ -15,6 +15,7 @@ Endpoints:
   GET  /assistant/sessions/{session_id} → chat history
 """
 import logging
+import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
@@ -47,8 +48,12 @@ logger = logging.getLogger(__name__)
 # Module-level orchestrator instance (stateless, safe to share across requests)
 _orchestrator = QueryOrchestrator()
 
-# Simple in-memory translation cache (avoids re-calling LLM for identical text+lang pairs)
-_translate_cache: dict = {}
+# Bounded in-memory translation cache (avoids re-calling LLM for identical text+lang pairs).
+# Eviction is FIFO via OrderedDict: oldest entry removed when the limit is hit.
+# Limit is intentionally generous (UI translations are small) but prevents unbounded growth.
+import collections as _collections
+_TRANSLATE_CACHE_MAXSIZE = int(os.getenv("TRANSLATE_CACHE_MAX_KEYS", "256"))
+_translate_cache: _collections.OrderedDict = _collections.OrderedDict()
 
 app = FastAPI(title="HLEO API", version="1.0.0")
 
@@ -2652,6 +2657,10 @@ async def translate_text(body: TranslateRequest):
         "target_lang":  body.target_lang,
         "content_type": body.content_type,
     }
+    # Evict oldest entry (FIFO) when at capacity before inserting the new one.
+    if _TRANSLATE_CACHE_MAXSIZE > 0:
+        while len(_translate_cache) >= _TRANSLATE_CACHE_MAXSIZE:
+            _translate_cache.popitem(last=False)
     _translate_cache[cache_key] = out
     logger.info(f"Translated {len(body.text)} chars to {lang_name} ({body.content_type})")
     return out

@@ -8,9 +8,19 @@ Design goals:
 - simple API: set/get/delete/contains
 - suitable for storing search-scoped results (search_id -> payload)
 
+Single-tenant by design
+-----------------------
+This module exposes a singleton ``temp_store`` instance shared across the
+entire process.  Isolation between callers is provided solely by the UUID-based
+key (search_id).  There is no per-user or per-session namespace: any caller
+that possesses a valid search_id can read its payload.  This is intentional for
+a single-tenant deployment; multi-tenant deployments should add a namespace
+prefix (e.g. ``<user_id>:<search_id>``) at the call site.
+
 This module exposes a singleton `temp_store` instance obtained from get_temp_store().
 """
 from __future__ import annotations
+import collections
 import os
 import time
 import threading
@@ -19,6 +29,11 @@ from typing import Any, Dict, Optional
 
 DEFAULT_TTL = int(os.getenv("TEMP_RESULTS_TTL", "300"))  # default 5 minutes
 _CLEANUP_INTERVAL = int(os.getenv("TEMP_STORE_CLEANUP_INTERVAL", "60"))  # seconds
+
+# Maximum number of keys retained simultaneously.  When the limit is reached
+# the oldest-inserted key is evicted (FIFO) before the new one is written.
+# Set to 0 to disable the limit (not recommended in production).
+_MAX_KEYS = int(os.getenv("TEMP_STORE_MAX_KEYS", "1000"))
 
 
 class TempStoreBase:
@@ -37,17 +52,30 @@ class TempStoreBase:
 
 
 class InMemoryTempStore(TempStoreBase):
-    """Thread-safe in-process temp store with TTL and periodic cleanup.
+    """Thread-safe in-process temp store with TTL, periodic cleanup, and bounded size.
 
     Notes:
     - Simple, intended for development and single-process deployments.
     - Keys and values are kept in memory; will be lost on process restart.
     - TTL is enforced on get and by a background cleanup thread.
+    - When ``maxsize > 0`` and the store is full, the oldest key (FIFO) is
+      evicted before the new entry is written.  This prevents unbounded memory
+      growth under sustained load (e.g. 1 req/s × 300 s TTL ≈ 300 live keys).
+
+    Single-tenant by design: see module docstring for isolation guarantees.
     """
-    def __init__(self, cleanup_interval: int = _CLEANUP_INTERVAL):
-        self._store: Dict[str, tuple[Any, float]] = {}
+    def __init__(
+        self,
+        cleanup_interval: int = _CLEANUP_INTERVAL,
+        maxsize: int = _MAX_KEYS,
+    ):
+        # OrderedDict preserves insertion order → O(1) FIFO eviction.
+        self._store: collections.OrderedDict[str, tuple[Any, float]] = (
+            collections.OrderedDict()
+        )
         self._lock = threading.Lock()
         self._cleanup_interval = cleanup_interval
+        self._maxsize = maxsize  # 0 = unlimited
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._cleanup_loop, daemon=True)
         self._thread.start()
@@ -62,6 +90,17 @@ class InMemoryTempStore(TempStoreBase):
             except Exception:
                 # fallback: store repr if not JSON serializable
                 store_value = {"__repr__": repr(value)}
+
+            # If key already exists, remove it first so the new insertion
+            # lands at the tail (preserving FIFO order correctly).
+            if key in self._store:
+                del self._store[key]
+
+            # Evict oldest entries when at capacity.
+            if self._maxsize > 0:
+                while len(self._store) >= self._maxsize:
+                    self._store.popitem(last=False)  # FIFO: remove oldest
+
             self._store[key] = (store_value, expiry)
 
     def get(self, key: str) -> Optional[Any]:
