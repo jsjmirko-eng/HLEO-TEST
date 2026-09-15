@@ -33,6 +33,16 @@ description: Architettura multi-provider a 4 slot implementata in FASE 2. Decisi
 
 **How to apply:** usare `call_llm_chain(stages, ...)` per nuovi flussi; i flussi esistenti usano ancora `call_llm()` che è retrocompatibile.
 
+## Wiring dei caller esistenti
+
+`call_llm()` e `call_llm_json()` ora intercettano la chiamata quando ricevono un `LLMProvider`:
+1. `_unwrap_provider()` rileva che è un `LLMProvider`
+2. `_get_chain()` interroga `get_provider_chain()` (DB → slot abilitati in ordine di priorità)
+3. Se chain non vuota → `call_llm_chain()` con politica multi-slot
+4. Se chain vuota (nessuno slot configurato) → `_run_provider_loop()` con il provider passato (backward compat)
+
+**Why:** tutti i caller esistenti (`article_extractor`, `patient_extractor`, `relational_search`, `orchestrator`, `rwe/*`) chiamano `build_provider()` + `call_llm()` — non è stato necessario modificarli.
+
 ## Admin endpoints
 - `GET /admin/llm-slots` — ritorna lista 4 slot
 - `PUT /admin/llm-slots/{1-4}` — salva uno slot

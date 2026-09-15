@@ -557,6 +557,15 @@ def _run_provider_loop(*, operation: str, raw_client: Any, model: str,
     ) from last_exc
 
 
+def _get_chain() -> list:
+    """Return the current multi-slot provider chain (never raises)."""
+    try:
+        from core.llm_manager import get_provider_chain
+        return get_provider_chain()
+    except Exception:
+        return []
+
+
 def call_llm(
     client: Any,
     *,
@@ -570,8 +579,10 @@ def call_llm(
 ) -> str:
     """Call OpenAI chat.completions.create with a SINGLE, bounded retry policy.
 
-    Returns the assistant message text. Raises QuotaExhaustedError (no retry)
-    or LLMCallError (after MAX_TOTAL_ATTEMPTS) on failure.
+    When the caller passes an LLMProvider wrapper, the full 4-slot chain from
+    the Admin UI is used automatically (call_llm_chain). If no slots are
+    configured the call falls back to the provider passed in. A plain SDK
+    client (has .chat) bypasses the chain and goes through local-first routing.
 
     Callers MUST NOT add their own retry loop around this — that would breach
     the absolute cap. This is the only retry boundary in the whole project.
@@ -579,11 +590,21 @@ def call_llm(
     if json_mode and response_format is None:
         response_format = {"type": "json_object"}
 
-    # LLMProvider (core.llm_provider) path: unwrap to the raw SDK client and
-    # honour the one-way fallback chain + resolve_model mapping. A plain SDK
-    # client (has .chat) stays on the legacy routing below unchanged.
+    # LLMProvider (core.llm_provider) path: prefer the full multi-slot chain so
+    # all callers automatically benefit from 4-slot fallback + per-slot retry.
+    # Falls back to the single-provider _run_provider_loop when no slots are
+    # configured (e.g. only env vars are set, no Admin UI slots).
     provider = _unwrap_provider(client, model)
     if provider is not None:
+        chain = _get_chain()
+        if chain:
+            return call_llm_chain(
+                chain, messages=messages, model=model,
+                temperature=temperature, max_tokens=max_tokens,
+                response_format=response_format, json_mode=json_mode,
+                operation=operation,
+            )
+        # No slots configured → single-provider path (backward compat).
         raw_client, resolved_model, provider_name, fallback = provider
         return _run_provider_loop(
             operation=operation, raw_client=raw_client, model=resolved_model,
@@ -687,17 +708,23 @@ def call_llm_json(
 ) -> dict:
     """Call LLM, parse JSON, with the same single bounded retry policy.
 
-    JSON / schema validation failures ARE retryable (count toward the cap).
-    On the final attempt the raw text is attached to the error so the caller
-    can surface it.
-    """
-    client, model, fb_client, fb_model, route_name = _route(operation, client, model)
+    When the caller passes an LLMProvider wrapper, the full 4-slot chain is
+    used automatically (same as call_llm). Falls back to the single-provider
+    path when no slots are configured.
 
-    # LLMProvider (core.llm_provider) path: unwrap to the raw SDK client and
-    # honour the one-way fallback chain + resolve_model mapping. A plain SDK
-    # client (has .chat) stays on the legacy routing below unchanged.
+    JSON / schema validation failures ARE retryable (count toward the cap).
+    """
+    # LLMProvider path: prefer multi-slot chain, fall back to single-provider.
     provider = _unwrap_provider(client, model)
     if provider is not None:
+        chain = _get_chain()
+        if chain:
+            return call_llm_chain(
+                chain, messages=messages, model=model,
+                temperature=temperature, max_tokens=max_tokens,
+                response_format=None, json_mode=True,
+                operation=operation,
+            )
         raw_client, resolved_model, provider_name, fallback = provider
         return _run_provider_loop(
             operation=operation, raw_client=raw_client, model=resolved_model,
@@ -705,6 +732,8 @@ def call_llm_json(
             temperature=temperature, max_tokens=max_tokens,
             response_format=None, json_mode=True,
         )
+
+    client, model, fb_client, fb_model, route_name = _route(operation, client, model)
 
     last_exc: Optional[Exception] = None
     last_raw: str = ""
