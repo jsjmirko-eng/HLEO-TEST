@@ -620,7 +620,8 @@ def run_pipeline(q: str = Query(...), db: Session = Depends(get_db),
         needs_llm.append((i, art))
 
     # ── Phase 2: Parallel LLM extraction (unchanged) ────────────────────────
-    _MAX_WORKERS = 8
+    from core.llm_limits import get_limits as _get_limits
+    _MAX_WORKERS = _get_limits().pipeline_max_workers
     llm_results: dict[int, tuple] = {}
 
     if needs_llm:

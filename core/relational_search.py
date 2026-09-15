@@ -53,8 +53,21 @@ from core.search_result import SearchResult
 logger = logging.getLogger(__name__)
 
 MODEL = "gpt-4o-mini"
-JUDGE_BATCH = 5          # articles per judge LLM call
-JUDGE_POOL_PER_SOURCE = 10  # top-N candidates judged per source
+# JUDGE_BATCH and JUDGE_POOL_PER_SOURCE are now read at runtime from
+# core.llm_limits so they are configurable via the Admin UI.
+# The module-level names below are kept for backward compat / documentation only.
+JUDGE_BATCH = 5          # default (real value: get_limits().judge_batch_size)
+JUDGE_POOL_PER_SOURCE = 10  # default (real value: get_limits().judge_pool_per_source)
+
+
+def _limits():
+    """Return current HLEOLimits without raising."""
+    try:
+        from core.llm_limits import get_limits
+        return get_limits()
+    except Exception:
+        from core.llm_limits import HLEOLimits
+        return HLEOLimits()
 
 
 # ── Clinical relation model ──────────────────────────────────────────────────
@@ -677,8 +690,9 @@ class RelationalSearch:
         from core.ranker import clinical_rank
         if not items:
             return items
-        pool = items[:JUDGE_POOL_PER_SOURCE]
-        tail = items[JUDGE_POOL_PER_SOURCE:]
+        _pool_size = _limits().judge_pool_per_source
+        pool = items[:_pool_size]
+        tail = items[_pool_size:]
 
         judgements = self._judge_batched(pool, rel, stats)
 
@@ -707,8 +721,9 @@ class RelationalSearch:
             stats["judge_used"] = False
             return [{"label": "partial", "score": 0.5, "reason": "judge unavailable"} for _ in pool]
         out: list[dict] = []
-        for i in range(0, len(pool), JUDGE_BATCH):
-            batch = pool[i:i + JUDGE_BATCH]
+        _batch_sz = _limits().judge_batch_size
+        for i in range(0, len(pool), _batch_sz):
+            batch = pool[i:i + _batch_sz]
             try:
                 res = self._llm_judge(batch, rel)
                 stats["openai_calls"] += 1

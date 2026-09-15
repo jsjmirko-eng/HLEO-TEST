@@ -58,21 +58,25 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Absolute cap ─────────────────────────────────────────────────────────────
-MAX_TOTAL_ATTEMPTS = 5      # 1 initial + 4 retries. No layer may exceed this.
-
-# ── Backoff tunables ─────────────────────────────────────────────────────────
-_BASE_DELAY = 2.0           # seconds; doubled each attempt
-_MAX_DELAY = 30.0           # cap a single backoff sleep
-_JITTER = 0.15              # ±15% jitter
-
-# Absolute cap on total LLM attempts across ALL provider stages per request.
-# Prevents retry × stage multiplication (e.g. 4 slots × 3 attempts = 12,
-# but the request cap stops the loop when this total is reached).
+# ── Module-level defaults (backward-compat: external importers still see these)
+# All active code uses _lim() below, which reads from core.llm_limits at runtime
+# so Admin UI changes take effect without a server restart.
+MAX_TOTAL_ATTEMPTS = 5
+_BASE_DELAY = 2.0
+_MAX_DELAY = 30.0
+_JITTER = 0.15
 MAX_TOTAL_REQUEST_ATTEMPTS = 10
-
-# Per-stage default when the caller does not specify.
 _DEFAULT_MAX_RETRIES_PER_STAGE = 2
+
+
+def _lim():
+    """Return the current HLEOLimits (5-second TTL cache, never raises)."""
+    try:
+        from core.llm_limits import get_limits
+        return get_limits()
+    except Exception:
+        from core.llm_limits import HLEOLimits
+        return HLEOLimits()
 
 
 class QuotaExhaustedError(RuntimeError):
@@ -186,8 +190,9 @@ def classify_429(message: str) -> str:
 
 
 def _backoff_delay(attempt: int) -> float:
-    raw = min(_BASE_DELAY * (2 ** attempt), _MAX_DELAY)
-    return raw * (1.0 + random.uniform(-_JITTER, _JITTER))
+    lim = _lim()
+    raw = min(lim.backoff_base_s * (2 ** attempt), lim.backoff_max_s)
+    return raw * (1.0 + random.uniform(-lim.backoff_jitter, lim.backoff_jitter))
 
 
 def _extract_openai_message(exc: Exception) -> str:
@@ -473,7 +478,8 @@ def _run_provider_loop(*, operation: str, raw_client: Any, model: str,
 
     for stage_idx, (stage_client, stage_model, stage_provider) in enumerate(stages):
         is_last_stage = stage_idx == len(stages) - 1
-        for attempt in range(MAX_TOTAL_ATTEMPTS):
+        _max_att = _lim().max_total_attempts
+        for attempt in range(_max_att):
             active_client, active_model, active_provider = stage_client, stage_model, stage_provider
             try:
                 kwargs = _provider_kwargs(
@@ -502,13 +508,13 @@ def _run_provider_loop(*, operation: str, raw_client: Any, model: str,
                              latency_s=0.0, error=f"json_decode: {exc}",
                              fallback=stage_idx > 0)
                 last_kind = "schema"
-                remaining = MAX_TOTAL_ATTEMPTS - attempt - 1
+                remaining = _max_att - attempt - 1
                 if remaining <= 0:
                     break
                 delay = _backoff_delay(attempt)
                 logger.warning(
                     "%s: JSON parse error on attempt %d/%d — retrying in %.1fs. %s",
-                    operation, attempt + 1, MAX_TOTAL_ATTEMPTS, delay, str(exc)[:160],
+                    operation, attempt + 1, _max_att, delay, str(exc)[:160],
                 )
                 time.sleep(delay)
                 continue
@@ -526,7 +532,6 @@ def _run_provider_loop(*, operation: str, raw_client: Any, model: str,
                         raise QuotaExhaustedError(
                             f"OpenAI credit/quota exhausted — API calls disabled. ({msg})"
                         ) from exc
-                    # Primary quota → switch to fallback immediately, no retry.
                     logger.error(
                         "%s: %s quota exhausted — switching to fallback provider. %s",
                         operation, active_provider, msg,
@@ -534,25 +539,25 @@ def _run_provider_loop(*, operation: str, raw_client: Any, model: str,
                     _ROUTING_STATS["fallbacks"] += 1
                     break
                 last_kind = kind
-                remaining = MAX_TOTAL_ATTEMPTS - attempt - 1
+                remaining = _max_att - attempt - 1
                 if remaining <= 0:
                     if not is_last_stage:
                         _ROUTING_STATS["fallbacks"] += 1
                         logger.warning(
                             "%s: %s exhausted after %d attempts — switching to fallback provider.",
-                            operation, active_provider, MAX_TOTAL_ATTEMPTS,
+                            operation, active_provider, _max_att,
                         )
                     break
                 delay = _backoff_delay(attempt)
                 logger.warning(
                     "%s: attempt %d/%d failed (%s) — retrying in %.1fs. %s",
-                    operation, attempt + 1, MAX_TOTAL_ATTEMPTS, kind, delay,
+                    operation, attempt + 1, _max_att, kind, delay,
                     msg[:160],
                 )
                 time.sleep(delay)
 
     raise LLMCallError(
-        f"{operation} failed after {MAX_TOTAL_ATTEMPTS} attempts per provider "
+        f"{operation} failed after {_lim().max_total_attempts} attempts per provider "
         f"(last kind={last_kind}): {last_exc}"
     ) from last_exc
 
@@ -883,9 +888,10 @@ def call_llm_chain(
         stage_attempts = 0
 
         for attempt in range(stage_budget):
-            if total_attempts >= MAX_TOTAL_REQUEST_ATTEMPTS:
+            _cap = _lim().max_total_request_attempts
+            if total_attempts >= _cap:
                 raise LLMCallError(
-                    f"{operation}: global attempt cap ({MAX_TOTAL_REQUEST_ATTEMPTS}) "
+                    f"{operation}: global attempt cap ({_cap}) "
                     f"reached across all providers."
                 ) from last_exc
 
@@ -954,7 +960,7 @@ def call_llm_chain(
                     break  # skip to next stage
 
                 remaining = stage_budget - attempt - 1
-                if remaining <= 0 or total_attempts >= MAX_TOTAL_REQUEST_ATTEMPTS:
+                if remaining <= 0 or total_attempts >= _lim().max_total_request_attempts:
                     if remaining <= 0:
                         logger.warning(
                             "%s [slot %d %s]: exhausted after %d attempt(s) — switching to next provider.",

@@ -1135,6 +1135,23 @@
     <div id="adminLlmSlotsContainer" class="mt-4 space-y-3"></div>
   </div>
 
+  <!-- Global Limits Panel -->
+  <div id="adminGlobalLimitsPanel" class="hidden ds-card p-5 mb-6">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <div>
+        <div class="text-xs font-semibold tracking-[.18em] uppercase dark:text-slate-400 text-slate-500">GLOBAL LIMITS</div>
+        <p class="text-sm dark:text-slate-400 text-slate-500 mt-1">Centralized caps for LLM retry, concurrency, and search. Changes take effect within 5 seconds, no restart needed.</p>
+      </div>
+      <button onclick="_resetGlobalLimits()" class="ds-btn ds-btn-ghost text-xs">Reset to defaults</button>
+    </div>
+    <div id="adminGlobalLimitsErr" class="hidden mb-3 rounded-lg border border-red-500/30 bg-red-500/5 text-red-400 text-xs px-3 py-2"></div>
+    <div id="adminGlobalLimitsOk"  class="hidden mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-xs px-3 py-2"></div>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" id="adminGlobalLimitsGrid"></div>
+    <div class="mt-4">
+      <button onclick="_saveGlobalLimits()" class="ds-btn ds-btn-primary text-xs">Save limits</button>
+    </div>
+  </div>
+
   <!-- Category filter -->
   <div id="adminCatFilter" class="hidden flex flex-wrap items-center gap-2 mb-5">
     <span class="text-xs dark:text-slate-500 text-slate-400 font-medium" data-i18n="admin_filter">Category:</span>
@@ -4625,6 +4642,97 @@ async function loadAdminLLMConfig() {
 function saveAdminLLMConfig() {}
 function testAdminLLMConfig() {}
 
+// ═══════════════ GLOBAL LIMITS ADMIN ══════════════════════════════════════
+
+const _LIMITS_META = [
+  { key: 'max_total_attempts',           label: 'Max retry (legacy)',         type: 'int', min:1,  max:10,  step:1,  hint:'Per-provider retry cap (single-provider path)' },
+  { key: 'max_total_request_attempts',   label: 'Max retry (multi-slot cap)', type: 'int', min:1,  max:40,  step:1,  hint:'Cross-slot absolute cap (prevents retry×slot)' },
+  { key: 'default_max_retries_per_stage',label: 'Retries per slot (default)', type: 'int', min:0,  max:4,   step:1,  hint:'Default per-slot budget when not set per-slot' },
+  { key: 'backoff_base_s',               label: 'Backoff base (s)',           type: 'float',min:0.1,max:60, step:0.5,hint:'Initial sleep before first retry' },
+  { key: 'backoff_max_s',                label: 'Backoff max (s)',            type: 'float',min:1,  max:300, step:5,  hint:'Cap on a single backoff sleep' },
+  { key: 'pipeline_max_workers',         label: 'Pipeline workers',           type: 'int', min:1,  max:32,  step:1,  hint:'ThreadPoolExecutor size for /pipeline/run' },
+  { key: 'judge_batch_size',             label: 'Judge batch (articles)',     type: 'int', min:1,  max:20,  step:1,  hint:'Articles per relational-judge LLM call' },
+  { key: 'judge_pool_per_source',        label: 'Judge pool / source',        type: 'int', min:1,  max:50,  step:1,  hint:'Top-N candidates judged per source (×3 sources)' },
+  { key: 'slot_timeout_s',               label: 'Slot timeout (s)',           type: 'float',min:5,  max:600, step:5,  hint:'Default per-slot HTTP timeout' },
+  { key: 'max_pipeline_results',         label: 'Max pipeline results',       type: 'int', min:1,  max:500, step:10, hint:'Max articles sent to LLM extraction per run' },
+];
+
+function _renderLimitsGrid(data) {
+  const grid = document.getElementById('adminGlobalLimitsGrid');
+  if (!grid) return;
+  grid.innerHTML = _LIMITS_META.map(m => {
+    const val = data[m.key] ?? '';
+    return `<div title="${esc(m.hint)}">
+      <label class="${_LABEL_CLS}">${esc(m.label)}</label>
+      <input id="glimit_${m.key}" type="number" min="${m.min}" max="${m.max}" step="${m.step}" value="${esc(String(val))}"
+             class="${_INPUT_CLS}" title="${esc(m.hint)}">
+    </div>`;
+  }).join('');
+}
+
+async function loadAdminGlobalLimits() {
+  const panel = document.getElementById('adminGlobalLimitsPanel');
+  if (!panel) return;
+  if (!_getAdminToken()) { panel.classList.add('hidden'); return; }
+  try {
+    const r = await fetch('/admin/global-limits', { headers: _adminAuthHeader() });
+    if (r.status === 401) { _clearAdminToken(); panel.classList.add('hidden'); _showAdminLoginPanel(true); return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    _renderLimitsGrid(d);
+    panel.classList.remove('hidden');
+  } catch(e) { panel.classList.add('hidden'); }
+}
+
+async function _saveGlobalLimits() {
+  const errEl = document.getElementById('adminGlobalLimitsErr');
+  const okEl  = document.getElementById('adminGlobalLimitsOk');
+  errEl?.classList.add('hidden'); okEl?.classList.add('hidden');
+  const body = {};
+  for (const m of _LIMITS_META) {
+    const el = document.getElementById('glimit_' + m.key);
+    if (!el) continue;
+    body[m.key] = m.type === 'int' ? parseInt(el.value, 10) : parseFloat(el.value);
+  }
+  try {
+    const r = await fetch('/admin/global-limits', {
+      method: 'PUT',
+      headers: Object.assign({'Content-Type':'application/json'}, _adminAuthHeader()||{}),
+      body: JSON.stringify(body),
+    });
+    if (r.status === 401) { _clearAdminToken(); _showAdminLoginPanel(true); return; }
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.detail || 'Save failed');
+    _renderLimitsGrid(d);
+    okEl.textContent = 'Global limits saved.';
+    okEl?.classList.remove('hidden');
+  } catch(e) {
+    errEl.textContent = e.message || 'Save failed.';
+    errEl?.classList.remove('hidden');
+  }
+}
+
+async function _resetGlobalLimits() {
+  const errEl = document.getElementById('adminGlobalLimitsErr');
+  const okEl  = document.getElementById('adminGlobalLimitsOk');
+  errEl?.classList.add('hidden'); okEl?.classList.add('hidden');
+  try {
+    const r = await fetch('/admin/global-limits/reset', {
+      method: 'POST',
+      headers: _adminAuthHeader()||{},
+    });
+    if (r.status === 401) { _clearAdminToken(); _showAdminLoginPanel(true); return; }
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.detail || 'Reset failed');
+    _renderLimitsGrid(d);
+    okEl.textContent = 'Limits reset to defaults.';
+    okEl?.classList.remove('hidden');
+  } catch(e) {
+    errEl.textContent = e.message || 'Reset failed.';
+    errEl?.classList.remove('hidden');
+  }
+}
+
 async function loadAdminSources() {
   const grid = document.getElementById('adminSourcesGrid');
   const empty = document.getElementById('adminEmpty');
@@ -4673,6 +4781,7 @@ async function loadAdminSources() {
     catFilter.classList.remove('hidden');
     renderAdminSources();
     await loadAdminLLMConfig();
+    await loadAdminGlobalLimits();
   } catch (e) {
     grid.innerHTML = `<div class="col-span-full text-center text-xs dark:text-red-400 text-red-500 py-8">Error: ${esc(e.message)}</div>`;
   }

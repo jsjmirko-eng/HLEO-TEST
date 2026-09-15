@@ -397,6 +397,46 @@ class AuditLog(Base):
     )
 
 
+class HLEOGlobalLimits(Base):
+    """Single-row table storing all global HLEO limits (configurable via Admin).
+
+    There is always at most one row. get_limits() in core.llm_limits reads it
+    and caches the result for 5 seconds. save_limits() writes it.
+    """
+    __tablename__ = "hleo_global_limits"
+
+    id                          = Column(Integer, primary_key=True)
+
+    # LLM retry — legacy single-provider path
+    max_total_attempts          = Column(Integer, default=5)
+    # LLM retry — multi-slot chain cap
+    max_total_request_attempts  = Column(Integer, default=10)
+    # Per-slot default retry budget
+    default_max_retries_per_stage = Column(Integer, default=2)
+
+    # Backoff
+    backoff_base_s              = Column(Float, default=2.0)
+    backoff_max_s               = Column(Float, default=30.0)
+    backoff_jitter              = Column(Float, default=0.15)
+
+    # Concurrency
+    pipeline_max_workers        = Column(Integer, default=8)
+
+    # Relational search judge
+    judge_batch_size            = Column(Integer, default=5)
+    judge_pool_per_source       = Column(Integer, default=10)
+
+    # Per-slot default timeout
+    slot_timeout_s              = Column(Float, default=60.0)
+
+    # Max articles forwarded to LLM extraction per pipeline run
+    max_pipeline_results        = Column(Integer, default=50)
+
+    updated_at = Column(DateTime(timezone=True),
+                        default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
 class LLMProviderSlot(Base):
     """One of up to 4 configurable LLM provider slots (priority order 1→4).
 

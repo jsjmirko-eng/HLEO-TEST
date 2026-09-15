@@ -557,6 +557,54 @@ def test_llm_slot(
         raise HTTPException(status_code=400, detail=f"Connection failed: {exc}")
 
 
+# ── Global Limits API ────────────────────────────────────────────────────────
+
+class GlobalLimitsRequest(BaseModel):
+    max_total_attempts: Optional[int] = None
+    max_total_request_attempts: Optional[int] = None
+    default_max_retries_per_stage: Optional[int] = None
+    backoff_base_s: Optional[float] = None
+    backoff_max_s: Optional[float] = None
+    backoff_jitter: Optional[float] = None
+    pipeline_max_workers: Optional[int] = None
+    judge_batch_size: Optional[int] = None
+    judge_pool_per_source: Optional[int] = None
+    slot_timeout_s: Optional[float] = None
+    max_pipeline_results: Optional[int] = None
+
+    model_config = {"extra": "ignore"}
+
+
+@router.get("/global-limits")
+def get_global_limits(_: str = Depends(require_admin)):
+    """Return current global limits (DB values or defaults)."""
+    from core.llm_limits import get_limits
+    return get_limits().to_dict()
+
+
+@router.put("/global-limits")
+def save_global_limits(
+    body: GlobalLimitsRequest,
+    _: str = Depends(require_admin),
+):
+    """Persist global limits. Only fields present in the request are updated."""
+    from core.llm_limits import get_limits, save_limits, HLEOLimits
+    current = get_limits()
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    merged = HLEOLimits.from_dict({**current.to_dict(), **updates})
+    merged.validate()
+    saved = save_limits(merged)
+    return saved.to_dict()
+
+
+@router.post("/global-limits/reset")
+def reset_global_limits(_: str = Depends(require_admin)):
+    """Reset all limits to their built-in defaults."""
+    from core.llm_limits import save_limits, HLEOLimits
+    saved = save_limits(HLEOLimits())
+    return saved.to_dict()
+
+
 @router.get("/sources")
 def list_sources(
     db: Session = Depends(get_db),
