@@ -1,8 +1,16 @@
-import requests
 import time
 from typing import Optional
 
 from core.search_result import SearchResult
+
+
+def _lim():
+    try:
+        from core.llm_limits import get_limits
+        return get_limits()
+    except Exception:
+        from core.llm_limits import HLEOLimits
+        return HLEOLimits()
 
 
 class PubMedCollector:
@@ -11,30 +19,31 @@ class PubMedCollector:
     FETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 
     def search(self, query: str, limit: Optional[int] = None):
-        # 1 — get IDs. Explicit limits remain supported for callers/tests;
-        # None follows E-utilities pagination, bounded only by the API's
-        # practical page ceiling to keep NCBI rate limits healthy.
+        from core.http_retry import http_get
+
+        lim = _lim()
+        timeout = lim.collector_timeout_s
+        max_retries = lim.collector_max_retries
+        backoff_base = lim.backoff_base_s
+        backoff_max = lim.backoff_max_s
+        inter_sleep = lim.pubmed_inter_call_sleep_s
+
+        # 1 — get IDs (paginated)
         target = limit if limit is not None else 400
         page_size = max(1, min(target, 100))
         ids: list[str] = []
         retstart = 0
         total = None
         while len(ids) < target and (total is None or retstart < total):
-            r = requests.get(
+            r = http_get(
                 self.SEARCH_URL,
                 params={"db": "pubmed", "term": query, "retmax": page_size,
                         "retstart": retstart, "retmode": "json"},
-                timeout=15,
+                timeout=timeout,
+                max_retries=max_retries,
+                backoff_base_s=backoff_base,
+                backoff_max_s=backoff_max,
             )
-            if r.status_code == 429 and limit is None:
-                time.sleep(0.8)
-                r = requests.get(
-                    self.SEARCH_URL,
-                    params={"db": "pubmed", "term": query, "retmax": page_size,
-                            "retstart": retstart, "retmode": "json"},
-                    timeout=15,
-                )
-            r.raise_for_status()
             result = r.json()["esearchresult"]
             batch = result.get("idlist", [])
             ids.extend(batch)
@@ -42,28 +51,33 @@ class PubMedCollector:
             retstart += len(batch)
             if limit is not None or not batch or len(batch) < page_size:
                 break
+
         if limit is not None:
             ids = ids[:limit]
+
+        # Sleep only when there are IDs to retrieve — skip if query returned nothing
         if not ids:
             return []
 
-        time.sleep(0.4)
+        time.sleep(inter_sleep)
 
         # 2 — summary (title, authors, journal)
-        r2 = requests.get(
+        r2 = http_get(
             self.SUMMARY_URL,
             params={"db": "pubmed", "id": ",".join(ids), "retmode": "json"},
-            timeout=15,
+            timeout=timeout,
+            max_retries=max_retries,
+            backoff_base_s=backoff_base,
+            backoff_max_s=backoff_max,
         )
-        r2.raise_for_status()
         details = r2.json()
 
-        time.sleep(0.4)
+        time.sleep(inter_sleep)
 
         # 3 — fetch abstracts as plain text, one call for all IDs
         abstract_map: dict[str, str] = {}
         try:
-            r3 = requests.get(
+            r3 = http_get(
                 self.FETCH_URL,
                 params={
                     "db": "pubmed",
@@ -71,10 +85,12 @@ class PubMedCollector:
                     "rettype": "abstract",
                     "retmode": "text",
                 },
-                timeout=20,
+                timeout=timeout,
+                max_retries=max_retries,
+                backoff_base_s=backoff_base,
+                backoff_max_s=backoff_max,
             )
             if r3.status_code == 200:
-                # Split on numbered entries like "\n\n1. " or "\n\n2. "
                 blocks = r3.text.split("\n\n\n")
                 for i, pmid in enumerate(ids):
                     if i < len(blocks):

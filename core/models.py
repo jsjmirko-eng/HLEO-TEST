@@ -423,6 +423,18 @@ class HLEOGlobalLimits(Base):
     pipeline_max_workers        = Column(Integer, default=8)
     collector_max_workers       = Column(Integer, default=6)
 
+    # Per-source concurrency caps (semaphores)
+    pubmed_max_concurrent       = Column(Integer, default=2)
+    epmc_max_concurrent         = Column(Integer, default=4)
+    ct_max_concurrent           = Column(Integer, default=3)
+
+    # PubMed inter-call sleep
+    pubmed_inter_call_sleep_s   = Column(Float, default=0.4)
+
+    # Collector HTTP settings
+    collector_timeout_s         = Column(Float, default=20.0)
+    collector_max_retries       = Column(Integer, default=2)
+
     # Relational search judge
     judge_batch_size            = Column(Integer, default=5)
     judge_pool_per_source       = Column(Integer, default=10)

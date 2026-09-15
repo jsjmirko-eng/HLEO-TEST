@@ -79,6 +79,23 @@ class HLEOLimits:
     # (variant × source tasks run in parallel up to this limit)
     collector_max_workers: int = 6
 
+    # Per-source concurrency caps (semaphores inside the collector pool)
+    # These constrain concurrency within collector_max_workers, not beyond it.
+    pubmed_max_concurrent: int = 2     # NCBI rate limit: 3 req/s without API key
+    epmc_max_concurrent: int = 4       # EuropePMC: no strict published limit
+    ct_max_concurrent: int = 3         # ClinicalTrials: ~3–5 req/s documented
+
+    # PubMed inter-call sleep (seconds) — respects NCBI E-utilities rate limit.
+    # Applied only when IDs are found (not on empty results).
+    pubmed_inter_call_sleep_s: float = 0.4
+
+    # HTTP timeout for collector calls (seconds)
+    collector_timeout_s: float = 20.0
+
+    # Max additional HTTP retry attempts per single request (0 = no retry).
+    # Applies to transient errors: 429, 5xx, Timeout, ConnectionError.
+    collector_max_retries: int = 2
+
     # Relational search — LLM judge budget
     judge_batch_size: int = 5             # articles per judge call
     judge_pool_per_source: int = 10       # top-N judged per source (× 3 sources ≈ 6 calls)
@@ -99,6 +116,12 @@ class HLEOLimits:
         self.backoff_jitter = max(0.0, min(0.5, self.backoff_jitter))
         self.pipeline_max_workers = max(1, min(32, self.pipeline_max_workers))
         self.collector_max_workers = max(1, min(32, self.collector_max_workers))
+        self.pubmed_max_concurrent = max(1, min(10, self.pubmed_max_concurrent))
+        self.epmc_max_concurrent = max(1, min(10, self.epmc_max_concurrent))
+        self.ct_max_concurrent = max(1, min(10, self.ct_max_concurrent))
+        self.pubmed_inter_call_sleep_s = max(0.0, min(5.0, self.pubmed_inter_call_sleep_s))
+        self.collector_timeout_s = max(5.0, min(120.0, self.collector_timeout_s))
+        self.collector_max_retries = max(0, min(5, self.collector_max_retries))
         self.judge_batch_size = max(1, min(20, self.judge_batch_size))
         self.judge_pool_per_source = max(1, min(50, self.judge_pool_per_source))
         self.slot_timeout_s = max(5.0, min(600.0, self.slot_timeout_s))

@@ -38,6 +38,7 @@ import copy
 import json
 import logging
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -242,6 +243,15 @@ class RelationalSearch:
         self.pubmed = PubMedCollector()
         self.europepmc = EuropePMCCollector()
         self.clinicaltrials = ClinicalTrialsCollector()
+        # Per-source semaphores: limit concurrent HTTP tasks per source to
+        # avoid violating each API's rate limit, even when collector_max_workers
+        # would allow more parallel tasks overall.
+        lim = _limits()
+        self._source_sems: dict[str, threading.Semaphore] = {
+            "pubmed":        threading.Semaphore(lim.pubmed_max_concurrent),
+            "europepmc":     threading.Semaphore(lim.epmc_max_concurrent),
+            "clinicaltrials": threading.Semaphore(lim.ct_max_concurrent),
+        }
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -277,22 +287,42 @@ class RelationalSearch:
         # Metadata mutation (match_provenance, matched_queries) happens in the
         # main thread after all futures complete — no shared-state races.
 
+        # Capture semaphore map from the instance for use inside threads.
+        # Use getattr fallback so tests that create instances via __new__
+        # (without calling __init__) get functional semaphores automatically.
+        source_sems = getattr(self, "_source_sems", None)
+        if source_sems is None:
+            lim_now = _limits()
+            source_sems = {
+                "pubmed":         threading.Semaphore(lim_now.pubmed_max_concurrent),
+                "europepmc":      threading.Semaphore(lim_now.epmc_max_concurrent),
+                "clinicaltrials": threading.Semaphore(lim_now.ct_max_concurrent),
+            }
+
         def _collect_one(
             source: str,
             collector,
             query: str,
             provenance: str,
         ) -> tuple[str, str, str, list]:
-            """Return (source, provenance, query, items). Never raises."""
-            try:
-                items = collector.search(query, limit=None)
-                return source, provenance, query, items
-            except Exception as exc:
-                logger.warning(
-                    "Scientific %s retrieval failed (query=%r): %s",
-                    source, query, exc,
-                )
-                return source, provenance, query, []
+            """Return (source, provenance, query, items). Never raises.
+
+            Acquires the per-source semaphore before starting HTTP calls so
+            that concurrent tasks for the same source stay within the
+            configured rate-limit budget (pubmed_max_concurrent etc.), even
+            when collector_max_workers allows more total parallel tasks.
+            """
+            sem = source_sems.get(source)
+            with sem:
+                try:
+                    items = collector.search(query, limit=None)
+                    return source, provenance, query, items
+                except Exception as exc:
+                    logger.warning(
+                        "Scientific %s retrieval failed (query=%r): %s",
+                        source, query, exc,
+                    )
+                    return source, provenance, query, []
 
         max_workers = _limits().collector_max_workers
         tasks = [

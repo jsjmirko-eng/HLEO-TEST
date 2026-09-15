@@ -1,13 +1,29 @@
-import requests
 from typing import Optional
 
 from core.search_result import SearchResult
+
+
+def _lim():
+    try:
+        from core.llm_limits import get_limits
+        return get_limits()
+    except Exception:
+        from core.llm_limits import HLEOLimits
+        return HLEOLimits()
 
 
 class ClinicalTrialsCollector:
     API_URL = "https://clinicaltrials.gov/api/v2/studies"
 
     def search(self, query: str, limit: Optional[int] = None):
+        from core.http_retry import http_get
+
+        lim = _lim()
+        timeout = lim.collector_timeout_s
+        max_retries = lim.collector_max_retries
+        backoff_base = lim.backoff_base_s
+        backoff_max = lim.backoff_max_s
+
         target = limit if limit is not None else 400
         page_size = max(1, min(target, 100))
         fields = ("NCTId,BriefTitle,BriefSummary,DetailedDescription,"
@@ -19,8 +35,14 @@ class ClinicalTrialsCollector:
             params = {"query.term": query, "pageSize": page_size, "fields": fields}
             if token:
                 params["pageToken"] = token
-            r = requests.get(self.API_URL, params=params, timeout=20)
-            r.raise_for_status()
+            r = http_get(
+                self.API_URL,
+                params=params,
+                timeout=timeout,
+                max_retries=max_retries,
+                backoff_base_s=backoff_base,
+                backoff_max_s=backoff_max,
+            )
             data = r.json()
             batch = data.get("studies", []) or []
             studies.extend(batch)
@@ -29,6 +51,7 @@ class ClinicalTrialsCollector:
             token = data.get("nextPageToken")
             if not token:
                 break
+
         if limit is not None:
             studies = studies[:limit]
 
@@ -52,20 +75,15 @@ class ClinicalTrialsCollector:
                 i.get("interventionName", "")
                 for i in interv_mod.get("interventions", [])
             ]
-
             phases = design_mod.get("phases", [])
             phase_str = ", ".join(phases) if phases else ""
-
             enrollment = design_mod.get("enrollmentInfo", {}).get("count")
-
             primary_outcomes = [
                 o.get("measure", "")
                 for o in outcomes_mod.get("primaryOutcomes", [])
             ]
-
             start_date = status_mod.get("startDateStruct", {}).get("date", "")
             completion_date = status_mod.get("primaryCompletionDateStruct", {}).get("date", "")
-
             lead_sponsor = sponsor_mod.get("leadSponsor", {}).get("name", "")
 
             results.append(

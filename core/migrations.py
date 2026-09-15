@@ -10,18 +10,14 @@ Called once at startup, after Base.metadata.create_all(), from api/main.py.
 
 Adding a new migration
 ----------------------
-1. Write a function `_add_<column>_to_<table>()` that:
-   a. Checks information_schema.columns (or pg_attribute for PG) for existence.
-   b. Issues ALTER TABLE … ADD COLUMN … DEFAULT … only when absent.
-   c. Logs at DEBUG when already present, INFO when added.
-2. Call it from run_schema_upgrades() in the ordered list.
+1. Write a call to _add_column() inside the appropriate grouping function.
+2. Call that function from run_schema_upgrades() in the ordered list.
 3. Add a test in tests/test_migrations.py.
 
 Design rules
 ------------
 - Never DROP or RENAME — only ADD with safe defaults.
-- Each migration catches its own exceptions and logs them; a failed migration
-  must not prevent the server from starting.
+- A failed migration logs an error but does NOT raise — server starts anyway.
 - Works with PostgreSQL (production) and SQLite (tests / local dev).
 """
 from __future__ import annotations
@@ -29,6 +25,8 @@ from __future__ import annotations
 import logging
 
 logger = logging.getLogger(__name__)
+
+_TABLE = "hleo_global_limits"
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -59,26 +57,35 @@ def _column_exists(conn, table: str, column: str) -> bool:
         return any(row[1] == column for row in rows)
 
 
-# ── Individual migrations (ordered, idempotent) ───────────────────────────────
-
-def _add_collector_max_workers(conn) -> None:
+def _add_column(conn, table: str, column: str, definition: str) -> None:
     """
-    hleo_global_limits.collector_max_workers INTEGER DEFAULT 6
-
-    Added in FASE 4.1 (parallel Scientific collector).
+    Add *column* to *table* with the given SQL *definition* (type + DEFAULT).
+    No-op when the column already exists.
     """
-    table = "hleo_global_limits"
-    column = "collector_max_workers"
+    from sqlalchemy import text
 
     if _column_exists(conn, table, column):
         logger.debug("Migration: %s.%s already exists — skipped.", table, column)
         return
+    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+    logger.info("Migration: added %s.%s (%s).", table, column, definition)
 
-    from sqlalchemy import text
-    conn.execute(
-        text(f"ALTER TABLE {table} ADD COLUMN {column} INTEGER DEFAULT 6")
-    )
-    logger.info("Migration: added %s.%s (DEFAULT 6).", table, column)
+
+# ── Individual migrations (ordered, idempotent) ───────────────────────────────
+
+def _migrate_fase_4_1(conn) -> None:
+    """FASE 4.1 — parallel Scientific collector."""
+    _add_column(conn, _TABLE, "collector_max_workers", "INTEGER DEFAULT 6")
+
+
+def _migrate_fase_4_2b(conn) -> None:
+    """FASE 4.2B — per-source semaphores + configurable HTTP settings."""
+    _add_column(conn, _TABLE, "pubmed_max_concurrent",     "INTEGER DEFAULT 2")
+    _add_column(conn, _TABLE, "epmc_max_concurrent",       "INTEGER DEFAULT 4")
+    _add_column(conn, _TABLE, "ct_max_concurrent",         "INTEGER DEFAULT 3")
+    _add_column(conn, _TABLE, "pubmed_inter_call_sleep_s", "REAL DEFAULT 0.4")
+    _add_column(conn, _TABLE, "collector_timeout_s",       "REAL DEFAULT 20.0")
+    _add_column(conn, _TABLE, "collector_max_retries",     "INTEGER DEFAULT 2")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -99,7 +106,8 @@ def run_schema_upgrades(engine=None) -> None:
 
     try:
         with engine.begin() as conn:
-            _add_collector_max_workers(conn)
+            _migrate_fase_4_1(conn)
+            _migrate_fase_4_2b(conn)
     except Exception as exc:
         # A migration failure must not prevent the server from starting.
         logger.error("Schema upgrade failed (server continues): %s", exc)
