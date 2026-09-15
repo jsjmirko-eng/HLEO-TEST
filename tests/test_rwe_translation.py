@@ -1,12 +1,17 @@
 """Tests for the RWE robust translation chain and openFDA query sanitisation.
 
 All offline: fake LLM clients + mocked requests; no network, no real keys.
+
+FASE 6B: openFDA HTTP calls now go through core.http_retry.http_get; patch
+target for openFDA tests updated to core.http_retry.requests.get.
+_Resp now implements raise_for_status() so http_get's error handling works.
 """
 from __future__ import annotations
 
 from types import SimpleNamespace
 
 import pytest
+import requests as _requests
 
 import core.llm_guard
 import core.rwe.openfda_collector as fda
@@ -22,9 +27,10 @@ from core.rwe.translation import _validate, translate_for_rwe
 
 @pytest.fixture(autouse=True)
 def _no_backoff_sleep(monkeypatch):
-    """llm_guard retries with real backoff sleeps — neutralise them so the
-    failing-LLM chain tests run in milliseconds."""
+    """Neutralise all backoff sleeps (LLM guard + http_retry)."""
     monkeypatch.setattr(core.llm_guard.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setattr("core.http_retry.time.sleep", lambda *_: None)
+
 
 IT_QUERY = ("dolore articolare e rigidità dopo l'uso di isotretinoina, "
             "esperienze dei pazienti")
@@ -128,9 +134,9 @@ def test_english_query_not_translated():
 # ── openFDA sanitisation ─────────────────────────────────────────────────────
 
 def test_sanitize_apostrophes_and_unicode():
-    q = "dolore articolare e rigidità dopo l’uso di isotretinoin, esperienze"
+    q = "dolore articolare e rigidità dopo l'uso di isotretinoin, esperienze"
     out = sanitize_fda_term(q)
-    assert "'" not in out and "’" not in out
+    assert "'" not in out and "'" not in out
     assert "rigidita" in out          # NFKD strips the accent
     assert "l uso" in out.replace("  ", " ") or "l uso" in out
 
@@ -150,6 +156,7 @@ def test_sanitize_empty():
 # ── openFDA HTTP 400 handling ────────────────────────────────────────────────
 
 class _Resp:
+    """Minimal response object compatible with http_get and the collector."""
     def __init__(self, code, payload=None):
         self.status_code = code
         self._payload = payload or {}
@@ -157,6 +164,12 @@ class _Resp:
 
     def json(self):
         return self._payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise _requests.HTTPError(
+                f"HTTP {self.status_code}", response=self  # type: ignore[arg-type]
+            )
 
 
 def _faers_payload(n=1):
@@ -173,13 +186,13 @@ def _faers_payload(n=1):
 def test_openfda_400_retry_then_ok(monkeypatch):
     calls = []
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, **_kw):
         calls.append(params["search"])
         if len(calls) == 1:
             return _Resp(400, {"error": {"message": "Search not supported"}})
         return _Resp(200, _faers_payload(2))
 
-    monkeypatch.setattr(fda.requests, "get", fake_get)
+    monkeypatch.setattr("core.http_retry.requests.get", fake_get)
     items, status, reason = OpenFDACollector().search_with_status(
         IT_QUERY, limit=5)
     assert status == STATUS_OK
@@ -189,10 +202,10 @@ def test_openfda_400_retry_then_ok(monkeypatch):
 
 
 def test_openfda_double_400_unsupported_query(monkeypatch):
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, **_kw):
         return _Resp(400, {"error": {"message": "Search not supported"}})
 
-    monkeypatch.setattr(fda.requests, "get", fake_get)
+    monkeypatch.setattr("core.http_retry.requests.get", fake_get)
     items, status, reason = OpenFDACollector().search_with_status(
         IT_QUERY, limit=5)
     assert status == STATUS_UNSUPPORTED_QUERY
@@ -201,10 +214,10 @@ def test_openfda_double_400_unsupported_query(monkeypatch):
 
 
 def test_openfda_404_still_no_results(monkeypatch):
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, **_kw):
         return _Resp(404, {})
 
-    monkeypatch.setattr(fda.requests, "get", fake_get)
+    monkeypatch.setattr("core.http_retry.requests.get", fake_get)
     items, status, _reason = OpenFDACollector().search_with_status(
         "isotretinoin", limit=5)
     assert status == STATUS_NO_RESULTS

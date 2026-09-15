@@ -16,11 +16,21 @@ challenge is placed on the RSS endpoint.
 Privacy: the author element is deliberately NOT carried into RWEItem
 (privacy_status="redacted"); only the metadata necessary for provenance and
 source identification is retained.
+
+FASE 6B optimisations
+---------------------
+- Per-slug HTTP uses core.http_retry.http_get → retry on 429/5xx/Timeout/
+  ConnectionError (bounded by collector_max_retries from Global Limits).
+- Timeout read from collector_timeout_s (Global Limits) instead of hardcoded.
+- Forum slugs fetched in parallel (ThreadPoolExecutor, max 4 workers) with a
+  per-instance threading.Lock protecting _feed_cache writes.
 """
 from __future__ import annotations
 
 import logging
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import List, Optional, Tuple
 from xml.etree import ElementTree
@@ -45,6 +55,19 @@ _NS = {
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
+
+# Max parallel slug fetches per collector instance (Opt 5).
+_SLUG_WORKERS = 4
+
+
+def _lim():
+    """Return current Global Limits (cached, 5 s TTL)."""
+    try:
+        from core.llm_limits import get_limits
+        return get_limits()
+    except Exception:
+        from core.llm_limits import HLEOLimits
+        return HLEOLimits()
 
 
 def _strip_html(html: str) -> str:
@@ -108,12 +131,12 @@ class XenForoRSSCollector:
     source: str = ""
     base_url: str = ""
     language: str = "en"
-    timeout: int = 20
 
     def __init__(self, forum_slugs: Optional[List[str]] = None) -> None:
         if forum_slugs is not None:
             self.forum_slugs = forum_slugs
         self._feed_cache: dict = {}
+        self._cache_lock = threading.Lock()
         # forum_slugs must be declared on the subclass as a class attribute.
 
     def _meta(self) -> dict:
@@ -121,28 +144,47 @@ class XenForoRSSCollector:
         return RWE_SOURCES[self.source]
 
     def _fetch_forum(self, slug: str, limit: int) -> Tuple[List[RWEItem], str, str]:
-        """Fetch a single forum's RSS feed and normalize items."""
-        cache = getattr(self, "_feed_cache", None)
-        if cache is None:
-            cache = self._feed_cache = {}
-        if slug in cache:
-            items, status, reason = cache[slug]
-            return items[:limit], status, reason
+        """Fetch a single forum's RSS feed and normalize items.
+
+        Thread-safe: _feed_cache is protected by _cache_lock.
+        HTTP uses http_get for retry on 429/5xx/Timeout/ConnectionError.
+        Timeout comes from collector_timeout_s (Global Limits).
+        """
+        from core.http_retry import http_get
+
+        lim = _lim()
+        timeout = lim.collector_timeout_s
+        max_retries = lim.collector_max_retries
+        backoff_base = lim.backoff_base_s
+        backoff_max = lim.backoff_max_s
+
+        with self._cache_lock:
+            if slug in self._feed_cache:
+                items, status, reason = self._feed_cache[slug]
+                return items[:limit], status, reason
+
         url = f"{self.base_url}/{slug}/index.rss"
         try:
-            resp = requests.get(url, timeout=self.timeout, headers={
-                "Accept": "application/rss+xml, application/xml, text/xml",
-            })
+            resp = http_get(
+                url,
+                headers={"Accept": "application/rss+xml, application/xml, text/xml"},
+                timeout=timeout,
+                max_retries=max_retries,
+                backoff_base_s=backoff_base,
+                backoff_max_s=backoff_max,
+            )
+        except requests.HTTPError as exc:
+            code = exc.response.status_code if exc.response is not None else 0
+            if code == 429:
+                logger.warning(f"{self.source} rate limit for {slug} (after retries)")
+                return [], STATUS_RATE_LIMITED, f"{self.source} rate limit reached. Retry later."
+            if code == 404:
+                return [], STATUS_NO_RESULTS, f"{self.source} forum '{slug}' not found (404)."
+            logger.warning(f"{self.source} HTTP {code} for {slug}")
+            return [], STATUS_NETWORK_ERROR, f"{self.source} HTTP {code} for {slug}."
         except requests.exceptions.RequestException as exc:
             logger.warning(f"{self.source} network error for {slug}: {exc}")
             return [], STATUS_NETWORK_ERROR, str(exc)
-
-        if resp.status_code == 429:
-            return [], STATUS_RATE_LIMITED, f"{self.source} rate limit reached. Retry later."
-        if resp.status_code == 404:
-            return [], STATUS_NO_RESULTS, f"{self.source} forum '{slug}' not found (404)."
-        if resp.status_code != 200:
-            return [], STATUS_NETWORK_ERROR, f"{self.source} HTTP {resp.status_code} for {slug}."
 
         try:
             root = ElementTree.fromstring(resp.content)
@@ -187,9 +229,12 @@ class XenForoRSSCollector:
                     "comments": _safe_int(entry.findtext("slash:comments", namespaces=_NS)),
                 },
             ))
-        cache[slug] = (items, STATUS_OK, (
+
+        result_tuple = (items, STATUS_OK, (
             f"Retrieved {len(items)} {self.source} thread(s) from {slug.split('.')[0]}."
         ))
+        with self._cache_lock:
+            self._feed_cache[slug] = result_tuple
         return items[:limit], STATUS_OK, (
             f"Retrieved {len(items[:limit])} {self.source} thread(s) from {slug.split('.')[0]}."
         )
@@ -208,6 +253,10 @@ class XenForoRSSCollector:
         query, so the query still drives relevance even though the upstream
         fetch is forum-scoped rather than query-scoped.
 
+        Slugs are fetched in parallel (up to _SLUG_WORKERS concurrent fetches)
+        to reduce wall-clock time for collectors with many sub-forums (e.g.
+        Calvizie with 19 slugs).
+
         Returns: (items, status_code, human_reason)
         """
         if not query.strip():
@@ -218,14 +267,18 @@ class XenForoRSSCollector:
         statuses: List[str] = []
         reasons: List[str] = []
 
-        for slug in self.forum_slugs:
-            if len(all_items) >= target_limit:
-                break
-            items, status, reason = self._fetch_forum(slug, 10**9)
-            statuses.append(status)
-            reasons.append(reason)
-            if status == STATUS_OK:
-                all_items.extend(items)
+        n_workers = min(len(self.forum_slugs), _SLUG_WORKERS)
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            futures = {
+                executor.submit(self._fetch_forum, slug, 10**9): slug
+                for slug in self.forum_slugs
+            }
+            for fut in as_completed(futures):
+                items, status, reason = fut.result()
+                statuses.append(status)
+                reasons.append(reason)
+                if status == STATUS_OK:
+                    all_items.extend(items)
 
         if not all_items:
             if any(s == STATUS_OK for s in statuses):

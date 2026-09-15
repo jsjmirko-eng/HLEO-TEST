@@ -5,6 +5,10 @@ Covers: valid response, empty feed, malformed XML, timeout, HTTP error, rate
 limit, normalization (FR language, ISO-8601 dates, Atom entry parsing),
 provenance, multi-forum aggregation — using mocked HTTP so no live network is
 required.
+
+FASE 6B: HTTP calls now go through core.http_retry.http_get; patch target
+updated accordingly.  _resp() sets raise_for_status.side_effect for error codes
+so http_get raises HTTPError as expected.  time.sleep is neutralised globally.
 """
 import pytest
 import requests
@@ -57,11 +61,29 @@ MALFORMED_ATOM = """<?xml version="1.0"?>
 
 
 def _resp(status_code=200, text="", content=None):
+    """Create a mock requests.Response.
+
+    For error status codes, raise_for_status raises HTTPError — required so
+    that http_get's retry/permanent-error logic works correctly.
+    """
     r = MagicMock(spec=requests.Response)
     r.status_code = status_code
     r.text = text
-    r.content = (content if content is not None else text.encode("utf-8"))
+    r.content = content if content is not None else text.encode("utf-8")
+    r.headers = {}
+    if status_code >= 400:
+        r.raise_for_status.side_effect = requests.HTTPError(
+            f"HTTP {status_code}", response=r
+        )
+    else:
+        r.raise_for_status.return_value = None
     return r
+
+
+@pytest.fixture(autouse=True)
+def _no_sleep(monkeypatch):
+    """Neutralise http_retry backoff sleeps so error-path tests run fast."""
+    monkeypatch.setattr("core.http_retry.time.sleep", lambda *_: None)
 
 
 @pytest.fixture
@@ -72,7 +94,7 @@ def collector():
 # ── 1. Valid response + normalization ─────────────────────────────────────────
 
 def test_valid_response_returns_items(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=SAMPLE_ATOM.encode("utf-8"))):
         items, status, reason = collector.search_with_status("pelade", limit=5)
     assert status == STATUS_OK
@@ -98,7 +120,7 @@ def test_valid_response_returns_items(collector):
 
 
 def test_second_entry_parsed(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=SAMPLE_ATOM.encode("utf-8"))):
         items, _, _ = collector.search_with_status("pelade", limit=5)
     assert items[1].date == "2026-01-07"
@@ -106,12 +128,11 @@ def test_second_entry_parsed(collector):
 
 
 def test_text_truncated_to_4000(collector):
-    big = "<content type=\"html\"><![CDATA[" + ("x" * 5000) + "]]></content>"
     atom = SAMPLE_ATOM.replace(
         "Bonjour,<br>J&#8217;ai traîné une pelade sur la barbe pendant 10 ans.",
         "x" * 5000,
     )
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=atom.encode("utf-8"))):
         items, status, _ = collector.search_with_status("pelade", limit=1)
     assert status == STATUS_OK
@@ -121,7 +142,7 @@ def test_text_truncated_to_4000(collector):
 # ── 2. Edge cases: empty / malformed / no title-body ──────────────────────────
 
 def test_empty_feed_returns_no_results(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=EMPTY_ATOM.encode("utf-8"))):
         items, status, reason = collector.search_with_status("x", limit=5)
     assert items == []
@@ -129,7 +150,7 @@ def test_empty_feed_returns_no_results(collector):
 
 
 def test_malformed_xml_returns_network_error(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=MALFORMED_ATOM.encode("utf-8"))):
         items, status, reason = collector.search_with_status("x", limit=5)
     assert items == []
@@ -145,7 +166,7 @@ def test_entry_without_title_and_body_is_skipped(collector):
         "Merci pour votre témoignage. Pelade chronique depuis l&#8217;enfance.",
         "",
     )
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=atom.encode("utf-8"))):
         items, status, _ = collector.search_with_status("x", limit=5)
     assert status == STATUS_OK
@@ -155,7 +176,7 @@ def test_entry_without_title_and_body_is_skipped(collector):
 # ── 3. HTTP / network errors ─────────────────────────────────────────────────
 
 def test_http_500_returns_network_error(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         items, status, reason = collector.search_with_status("x", limit=5)
     assert items == []
@@ -164,7 +185,7 @@ def test_http_500_returns_network_error(collector):
 
 
 def test_http_404_returns_no_results(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(404)):
         items, status, reason = collector.search_with_status("x", limit=5)
     assert items == []
@@ -173,7 +194,7 @@ def test_http_404_returns_no_results(collector):
 
 
 def test_rate_limit_429(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(429)):
         items, status, reason = collector.search_with_status("x", limit=5)
     assert items == []
@@ -182,7 +203,7 @@ def test_rate_limit_429(collector):
 
 
 def test_timeout_returns_network_error(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                side_effect=requests.exceptions.Timeout("connect timed out")):
         items, status, _ = collector.search_with_status("x", limit=5)
     assert items == []
@@ -190,7 +211,7 @@ def test_timeout_returns_network_error(collector):
 
 
 def test_connection_error_returns_network_error(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                side_effect=requests.exceptions.ConnectionError("DNS failed")):
         items, status, _ = collector.search_with_status("x", limit=5)
     assert items == []
@@ -207,7 +228,7 @@ def test_empty_query_returns_no_results(collector):
 
 
 def test_search_silent_fail_returns_empty_list_on_error(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         assert collector.search("x", limit=5) == []
 
@@ -218,7 +239,7 @@ def test_multi_forum_aggregation_picks_ok_over_failures():
         if "999" in url:
             return _resp(404)
         return _resp(200, content=SAMPLE_ATOM.encode("utf-8"))
-    with patch("core.rwe.maladiesrares_collector.requests.get", side_effect=fake_get):
+    with patch("core.http_retry.requests.get", side_effect=fake_get):
         items, status, _ = c.search_with_status("pelade", limit=10)
     assert status == STATUS_OK
     assert len(items) == 2
@@ -226,7 +247,7 @@ def test_multi_forum_aggregation_picks_ok_over_failures():
 
 def test_all_forums_fail_returns_aggregate_failure():
     c = MaladiesRaresCollector(forum_ids=[173])
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         items, status, reason = c.search_with_status("x", limit=5)
     assert items == []
@@ -234,7 +255,7 @@ def test_all_forums_fail_returns_aggregate_failure():
 
 
 def test_limit_caps_total(collector):
-    with patch("core.rwe.maladiesrares_collector.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=SAMPLE_ATOM.encode("utf-8"))):
         items, status, _ = collector.search_with_status("x", limit=1)
     assert status == STATUS_OK

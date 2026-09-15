@@ -37,6 +37,7 @@ _PERMANENT_FAILURE_STATUS: frozenset[int] = frozenset({400, 401, 403, 404, 405, 
 def http_get(
     url: str,
     params=None,
+    headers=None,
     timeout: float = 20.0,
     max_retries: int = 2,
     backoff_base_s: float = 1.0,
@@ -68,7 +69,7 @@ def http_get(
 
     for attempt in range(max_retries + 1):
         try:
-            r = requests.get(url, params=params, timeout=timeout)
+            r = requests.get(url, params=params, headers=headers, timeout=timeout)
 
             # Permanent failure — never retry regardless of remaining budget
             if r.status_code in _PERMANENT_FAILURE_STATUS:

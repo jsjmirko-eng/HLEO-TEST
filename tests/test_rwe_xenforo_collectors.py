@@ -5,6 +5,10 @@ collectors (both share the XenForo base in ``core.rwe.xenforo_base``).
 Covers: valid response, empty response, malformed XML, timeout, HTTP error,
 rate limit, normalization, provenance, multi-forum aggregation — using
 mocked HTTP so no live network is required.
+
+FASE 6B: HTTP calls now go through core.http_retry.http_get; patch target
+updated accordingly.  _resp() sets raise_for_status.side_effect for error codes
+so http_get raises HTTPError as expected.  time.sleep is neutralised globally.
 """
 import pytest
 import requests
@@ -58,11 +62,29 @@ MALFORMED_RSS = """<?xml version="1.0"?>
 
 
 def _resp(status_code=200, text="", content=None):
+    """Create a mock requests.Response.
+
+    For error status codes, raise_for_status raises HTTPError — required so
+    that http_get's retry/permanent-error logic works correctly.
+    """
     r = MagicMock(spec=requests.Response)
     r.status_code = status_code
     r.text = text
-    r.content = (content if content is not None else text.encode("utf-8"))
+    r.content = content if content is not None else text.encode("utf-8")
+    r.headers = {}
+    if status_code >= 400:
+        r.raise_for_status.side_effect = requests.HTTPError(
+            f"HTTP {status_code}", response=r
+        )
+    else:
+        r.raise_for_status.return_value = None
     return r
+
+
+@pytest.fixture(autouse=True)
+def _no_sleep(monkeypatch):
+    """Neutralise http_retry backoff sleeps so error-path tests run fast."""
+    monkeypatch.setattr("core.http_retry.time.sleep", lambda *_: None)
 
 
 # ── HairLossTalk ──────────────────────────────────────────────────────────────
@@ -73,7 +95,7 @@ def hlt():
 
 
 def test_hlt_valid_response_returns_items(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=SAMPLE_RSS.encode("utf-8"))):
         items, status, reason = hlt.search_with_status("finasteride", limit=5)
     assert status == STATUS_OK
@@ -98,7 +120,7 @@ def test_hlt_valid_response_returns_items(hlt):
 
 
 def test_hlt_empty_feed_returns_no_results(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=EMPTY_RSS.encode("utf-8"))):
         items, status, reason = hlt.search_with_status("x", limit=5)
     assert items == []
@@ -107,7 +129,7 @@ def test_hlt_empty_feed_returns_no_results(hlt):
 
 
 def test_hlt_malformed_xml_returns_network_error(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=MALFORMED_RSS.encode("utf-8"))):
         items, status, reason = hlt.search_with_status("x", limit=5)
     assert items == []
@@ -116,7 +138,7 @@ def test_hlt_malformed_xml_returns_network_error(hlt):
 
 
 def test_hlt_http_500_returns_network_error(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         items, status, reason = hlt.search_with_status("x", limit=5)
     assert items == []
@@ -125,7 +147,7 @@ def test_hlt_http_500_returns_network_error(hlt):
 
 
 def test_hlt_http_404_returns_no_results(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(404)):
         items, status, reason = hlt.search_with_status("x", limit=5)
     assert items == []
@@ -134,7 +156,7 @@ def test_hlt_http_404_returns_no_results(hlt):
 
 
 def test_hlt_rate_limit_429(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(429)):
         items, status, reason = hlt.search_with_status("x", limit=5)
     assert items == []
@@ -143,7 +165,7 @@ def test_hlt_rate_limit_429(hlt):
 
 
 def test_hlt_timeout_returns_network_error(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                side_effect=requests.exceptions.Timeout("connect timed out")):
         items, status, reason = hlt.search_with_status("x", limit=5)
     assert items == []
@@ -158,7 +180,7 @@ def test_hlt_empty_query_returns_no_results(hlt):
 
 
 def test_hlt_search_silent_fail_returns_empty_list_on_error(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         assert hlt.search("x", limit=5) == []
 
@@ -169,7 +191,7 @@ def test_hlt_multi_forum_aggregation_picks_ok_over_failures():
         if "missing.999" in url:
             return _resp(404)
         return _resp(200, content=SAMPLE_RSS.encode("utf-8"))
-    with patch("core.rwe.xenforo_base.requests.get", side_effect=fake_get):
+    with patch("core.http_retry.requests.get", side_effect=fake_get):
         items, status, reason = c.search_with_status("finasteride", limit=10)
     assert status == STATUS_OK
     assert len(items) == 2
@@ -177,7 +199,7 @@ def test_hlt_multi_forum_aggregation_picks_ok_over_failures():
 
 def test_hlt_all_forums_fail_returns_aggregate_failure():
     c = HairLossTalkCollector(forum_slugs=["a.1", "b.2"])
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         items, status, reason = c.search_with_status("x", limit=5)
     assert items == []
@@ -185,7 +207,7 @@ def test_hlt_all_forums_fail_returns_aggregate_failure():
 
 
 def test_hlt_limit_caps_per_forum_and_total(hlt):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=SAMPLE_RSS.encode("utf-8"))):
         items, status, _ = hlt.search_with_status("x", limit=1)
     assert status == STATUS_OK
@@ -200,7 +222,7 @@ def hle():
 
 
 def test_hle_valid_response_returns_items(hle):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=SAMPLE_RSS.encode("utf-8"))):
         items, status, reason = hle.search_with_status("minoxidil", limit=5)
     assert status == STATUS_OK
@@ -215,7 +237,7 @@ def test_hle_valid_response_returns_items(hle):
 
 
 def test_hle_rate_limit_429(hle):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(429)):
         items, status, reason = hle.search_with_status("x", limit=5)
     assert items == []
@@ -223,7 +245,7 @@ def test_hle_rate_limit_429(hle):
 
 
 def test_hle_empty_feed_returns_no_results(hle):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=EMPTY_RSS.encode("utf-8"))):
         items, status, _ = hle.search_with_status("x", limit=5)
     assert items == []
@@ -231,7 +253,7 @@ def test_hle_empty_feed_returns_no_results(hle):
 
 
 def test_hle_connection_error_returns_network_error(hle):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                side_effect=requests.exceptions.ConnectionError("DNS failed")):
         items, status, _ = hle.search_with_status("x", limit=5)
     assert items == []

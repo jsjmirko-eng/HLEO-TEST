@@ -58,8 +58,21 @@ def _resp(status_code=200, text="", content=None):
     r = MagicMock(spec=requests.Response)
     r.status_code = status_code
     r.text = text
-    r.content = (content if content is not None else text.encode("utf-8"))
+    r.content = content if content is not None else text.encode("utf-8")
+    r.headers = {}
+    if status_code >= 400:
+        r.raise_for_status.side_effect = requests.HTTPError(
+            f"HTTP {status_code}", response=r
+        )
+    else:
+        r.raise_for_status.return_value = None
     return r
+
+
+@pytest.fixture(autouse=True)
+def _no_sleep(monkeypatch):
+    """Neutralise http_retry backoff sleeps so error-path tests run fast."""
+    monkeypatch.setattr("core.http_retry.time.sleep", lambda *_: None)
 
 
 @pytest.fixture
@@ -70,7 +83,7 @@ def collector():
 # ── 1. Valid response + normalization ────────────────────────────────────────
 
 def test_valid_response_returns_items(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=SAMPLE_RSS.encode("utf-8"))):
         items, status, reason = collector.search_with_status("finasteride", limit=5)
     assert status == STATUS_OK
@@ -86,7 +99,7 @@ def test_valid_response_returns_items(collector):
 
 
 def test_normalization_strips_html_and_internal_links(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=SAMPLE_RSS.encode("utf-8"))):
         items, _, _ = collector.search_with_status("finasteride", limit=1)
     it = items[0]
@@ -108,7 +121,7 @@ def test_text_truncated_to_4000(collector):
         "Ho iniziato il minoxidil",
         long_body + "Minoxidil",
     )
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=rss.encode("utf-8"))):
         items, _, _ = collector.search_with_status("finasteride", limit=2)
     assert all(len(it.text) <= 4000 for it in items)
@@ -123,7 +136,7 @@ def test_empty_channel_returns_no_results(collector):
     # simpler: build a truly empty channel
     empty = """<?xml version="1.0"?>
 <rss version="2.0"><channel><title>x</title><link>x</link></channel></rss>"""
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=empty.encode("utf-8"))):
         items, status, reason = collector.search_with_status("xyz", limit=5)
     assert items == []
@@ -139,7 +152,7 @@ def test_empty_query_returns_no_results(collector):
 # ── 3. Malformed XML ─────────────────────────────────────────────────────────
 
 def test_malformed_xml_returns_network_error(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(200, content=MALFORMED_RSS.encode("utf-8"))):
         items, status, reason = collector.search_with_status("finasteride", limit=5)
     assert items == []
@@ -150,7 +163,7 @@ def test_malformed_xml_returns_network_error(collector):
 # ── 4. Timeout ───────────────────────────────────────────────────────────────
 
 def test_timeout_returns_network_error(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                side_effect=requests.exceptions.Timeout("connect timed out")):
         items, status, reason = collector.search_with_status("finasteride", limit=5)
     assert items == []
@@ -159,7 +172,7 @@ def test_timeout_returns_network_error(collector):
 
 
 def test_connection_error_returns_network_error(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                side_effect=requests.exceptions.ConnectionError("DNS failed")):
         items, status, reason = collector.search_with_status("finasteride", limit=5)
     assert items == []
@@ -169,7 +182,7 @@ def test_connection_error_returns_network_error(collector):
 # ── 5. HTTP error ────────────────────────────────────────────────────────────
 
 def test_http_500_returns_network_error(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         items, status, reason = collector.search_with_status("finasteride", limit=5)
     assert items == []
@@ -178,7 +191,7 @@ def test_http_500_returns_network_error(collector):
 
 
 def test_http_404_returns_no_results(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(404)):
         items, status, reason = collector.search_with_status("finasteride", limit=5)
     assert items == []
@@ -188,7 +201,7 @@ def test_http_404_returns_no_results(collector):
 # ── 6. Rate limit ────────────────────────────────────────────────────────────
 
 def test_rate_limit_429(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(429)):
         items, status, reason = collector.search_with_status("finasteride", limit=5)
     assert items == []
@@ -204,7 +217,7 @@ def test_multi_forum_aggregation_picks_ok_over_failures():
         _resp(200, content=SAMPLE_RSS.encode("utf-8")),
         _resp(404),
     ])
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                side_effect=lambda *a, **k: next(responses)):
         items, status, reason = c.search_with_status("finasteride", limit=10)
     assert status == STATUS_OK
@@ -212,7 +225,7 @@ def test_multi_forum_aggregation_picks_ok_over_failures():
 
 
 def test_all_forums_fail_returns_aggregate_failure(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         items, status, reason = collector.search_with_status("finasteride", limit=5)
     assert items == []
@@ -279,7 +292,7 @@ def test_relevance_filter_keeps_matching_calvizie_items():
 # ── 11. Silent-fail search() wrapper ─────────────────────────────────────────
 
 def test_search_silent_fail_returns_empty_list_on_error(collector):
-    with patch("core.rwe.xenforo_base.requests.get",
+    with patch("core.http_retry.requests.get",
                return_value=_resp(500)):
         items = collector.search("finasteride", limit=5)
     assert items == []

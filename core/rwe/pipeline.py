@@ -753,33 +753,52 @@ class RWEPipeline:
             "maladiesrares": self.maladiesrares,
         }
 
-        for src in effective_sources:
+        # ── Parallel collector execution (Opt 1 — FASE 6B) ───────────────────
+        # Each collector runs independently; we collect results after all
+        # futures complete.  Bounded by collector_max_workers from Global
+        # Limits (default 6, one per source — matches the default source set).
+        from concurrent.futures import ThreadPoolExecutor, as_completed as _as_completed
+        try:
+            from core.llm_limits import get_limits as _get_limits
+            _n_workers = max(1, min(len(effective_sources), _get_limits().collector_max_workers))
+        except Exception:
+            _n_workers = len(effective_sources) or 1
+
+        def _run_collector(src: str):
+            """Resolve, instantiate (if generic_rest) and run one collector."""
             row = registry_map.get(src)
-            collector_key = (row.runtime_collector if row and row.runtime_collector else src)
+            collector_key = row.runtime_collector if row and row.runtime_collector else src
             collector = collector_map.get(collector_key)
-            # If this is a generic REST-configured source, instantiate GenericRESTCollector
             if collector_key == "generic_rest" and row:
                 try:
                     from collectors.generic_rest import GenericRESTCollector
-                    collector = GenericRESTCollector(row.connection_spec or {}, source_id=row.source_id, category=row.category)
+                    collector = GenericRESTCollector(
+                        row.connection_spec or {},
+                        source_id=row.source_id,
+                        category=row.category,
+                    )
                 except Exception as exc:
-                    logger.exception("Failed to instantiate GenericRESTCollector for %s: %s", src, exc)
-                    source_status[src] = "no_collector"
-                    continue
-
+                    logger.exception(
+                        "Failed to instantiate GenericRESTCollector for %s: %s", src, exc
+                    )
+                    return src, [], "no_collector"
             if not collector:
-                source_status[src] = "no_collector"
-                continue
-
+                return src, [], "no_collector"
             try:
-                items, status = self._collect_source(src, collector, plan, per_source_limits.get(src, limit))
-                source_status[src] = status
-                all_items.extend(items)
+                items, status = self._collect_source(
+                    src, collector, plan, per_source_limits.get(src, limit)
+                )
+                return src, items, status
             except Exception as exc:
                 logger.exception("RWE collector failed for %s: %s", src, exc)
-                source_status[src] = "network_error"
-                # continue with other sources
-                continue
+                return src, [], "network_error"
+
+        with ThreadPoolExecutor(max_workers=_n_workers) as _pool:
+            _futures = {_pool.submit(_run_collector, src): src for src in effective_sources}
+            for _fut in _as_completed(_futures):
+                _src, _items, _status = _fut.result()
+                source_status[_src] = _status
+                all_items.extend(_items)
 
         # ── 2. Deduplicate across (query × source), keep best matched_query ──
         before = len(all_items)
@@ -854,9 +873,12 @@ class RWEPipeline:
         statuses: List[str] = []
 
         # Forum-feed collectors (XenForo RSS / phpBB Atom) are not full-text
-        # searchable: every query re-fetches the same feed. Send them only the
-        # primary queries (original/translated/canonical); full-text APIs
-        # (openFDA, Reddit) receive the complete expansion set.
+        # searchable: every query re-fetches the same feed. Send them only ONE
+        # primary query (original > translated > canonical) — subsequent calls
+        # for the same slug are served from the per-instance _feed_cache with
+        # no HTTP overhead, so sending multiple queries is a no-op that only
+        # adds call overhead without changing results (Opt 6 — FASE 6B).
+        # Full-text APIs (openFDA, Reddit) receive up to 6 distinct queries.
         from core.rwe.xenforo_base import XenForoRSSCollector
         from core.rwe.maladiesrares_collector import MaladiesRaresCollector
         feed_like = isinstance(collector, (XenForoRSSCollector, MaladiesRaresCollector))
@@ -864,6 +886,7 @@ class RWEPipeline:
             primary_types = {"original", "translated", "canonical"}
             queries = [eq for eq in plan.expanded_queries
                        if eq.expansion_type in primary_types] or plan.expanded_queries[:1]
+            queries = queries[:1]  # Opt 6: one call is enough; rest hit cache
         else:
             # Server-side search APIs (openFDA, Reddit) execute one request
             # per query; bound the number of distinct queries sent to keep

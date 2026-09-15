@@ -21,6 +21,11 @@ language="fr".
 
 Only the alopecia-related sub-forum (pelade universelle, f173) is collected;
 the rest of the rare-disease community is out of scope (non-hair-loss).
+
+FASE 6B optimisations
+---------------------
+- HTTP uses core.http_retry.http_get → retry on 429/5xx/Timeout/ConnectionError.
+- Timeout read from collector_timeout_s (Global Limits) instead of hardcoded.
 """
 from __future__ import annotations
 
@@ -47,6 +52,16 @@ _NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
+
+
+def _lim():
+    """Return current Global Limits (cached, 5 s TTL)."""
+    try:
+        from core.llm_limits import get_limits
+        return get_limits()
+    except Exception:
+        from core.llm_limits import HLEOLimits
+        return HLEOLimits()
 
 
 def _strip_html(html: str) -> str:
@@ -85,7 +100,6 @@ class MaladiesRaresCollector:
     """Read-only MaladiesRaresInfo phpBB Atom collector (alopecia areata, FR)."""
 
     source = "maladiesrares"
-    timeout = 20
 
     def __init__(self, forum_ids: Optional[List[int]] = None) -> None:
         self.forum_ids = forum_ids if forum_ids is not None else _FORUM_IDS
@@ -95,25 +109,45 @@ class MaladiesRaresCollector:
         return RWE_SOURCES[self.source]
 
     def _fetch_forum(self, forum_id: int, limit: int) -> Tuple[List[RWEItem], str, str]:
-        """Fetch a single phpBB Atom feed and normalize entries."""
+        """Fetch a single phpBB Atom feed and normalize entries.
+
+        HTTP uses http_get for retry on 429/5xx/Timeout/ConnectionError.
+        Timeout comes from collector_timeout_s (Global Limits).
+        """
+        from core.http_retry import http_get
+
         if forum_id in self._feed_cache:
             items, status, reason = self._feed_cache[forum_id]
             return items[:limit], status, reason
+
+        lim = _lim()
+        timeout = lim.collector_timeout_s
+        max_retries = lim.collector_max_retries
+        backoff_base = lim.backoff_base_s
+        backoff_max = lim.backoff_max_s
+
         url = f"{BASE_URL}/{forum_id}"
         try:
-            resp = requests.get(url, timeout=self.timeout, headers={
-                "Accept": "application/atom+xml, application/xml, text/xml",
-            })
+            resp = http_get(
+                url,
+                headers={"Accept": "application/atom+xml, application/xml, text/xml"},
+                timeout=timeout,
+                max_retries=max_retries,
+                backoff_base_s=backoff_base,
+                backoff_max_s=backoff_max,
+            )
+        except requests.HTTPError as exc:
+            code = exc.response.status_code if exc.response is not None else 0
+            if code == 429:
+                logger.warning(f"{self.source} rate limit for forum {forum_id} (after retries)")
+                return [], STATUS_RATE_LIMITED, f"{self.source} rate limit reached. Retry later."
+            if code == 404:
+                return [], STATUS_NO_RESULTS, f"{self.source} forum {forum_id} not found (404)."
+            logger.warning(f"{self.source} HTTP {code} for forum {forum_id}")
+            return [], STATUS_NETWORK_ERROR, f"{self.source} HTTP {code} for {forum_id}."
         except requests.exceptions.RequestException as exc:
             logger.warning(f"{self.source} network error for {forum_id}: {exc}")
             return [], STATUS_NETWORK_ERROR, str(exc)
-
-        if resp.status_code == 429:
-            return [], STATUS_RATE_LIMITED, f"{self.source} rate limit reached. Retry later."
-        if resp.status_code == 404:
-            return [], STATUS_NO_RESULTS, f"{self.source} forum {forum_id} not found (404)."
-        if resp.status_code != 200:
-            return [], STATUS_NETWORK_ERROR, f"{self.source} HTTP {resp.status_code} for {forum_id}."
 
         try:
             root = ElementTree.fromstring(resp.content)

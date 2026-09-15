@@ -71,5 +71,4 @@ class CalvizieCollector(XenForoRSSCollector):
     forum_slugs: List[str] = _FORUM_SLUGS
 
     def __init__(self, forum_slugs: Optional[List[str]] = None) -> None:
-        if forum_slugs is not None:
-            self.forum_slugs = forum_slugs
+        super().__init__(forum_slugs=forum_slugs)
