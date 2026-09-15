@@ -34,6 +34,7 @@ Design notes
 """
 from __future__ import annotations
 
+import collections
 import copy
 import json
 import logging
@@ -230,8 +231,10 @@ class RelationalSearch:
         # so the caller falls back to the existing keyword pipeline.
     """
 
-    # Process-lifetime cache for relation extraction (identical query → same relation)
-    _rel_cache: dict[str, ClinicalRelation] = {}
+    # Process-lifetime cache for relation extraction (identical query → same relation).
+    # Bounded to 512 entries (FIFO eviction) to prevent unbounded memory growth.
+    _rel_cache: collections.OrderedDict = collections.OrderedDict()
+    _rel_cache_maxsize: int = 512
 
     def __init__(self) -> None:
         self._client = None
@@ -648,6 +651,8 @@ class RelationalSearch:
             relation_phrases=data.get("relation_phrases", []) or [],
             fallback_needed=bool(data.get("fallback_needed", False)),
         )
+        if len(self._rel_cache) >= self._rel_cache_maxsize:
+            self._rel_cache.popitem(last=False)  # evict oldest (FIFO)
         self._rel_cache[ck] = rel
         return rel
 

@@ -17,7 +17,7 @@ import threading
 import json
 from typing import Any, Dict, Optional
 
-DEFAULT_TTL = int(os.getenv("TEMP_RESULTS_TTL", "3600"))  # default 1 hour (provisional)
+DEFAULT_TTL = int(os.getenv("TEMP_RESULTS_TTL", "300"))  # default 5 minutes
 _CLEANUP_INTERVAL = int(os.getenv("TEMP_STORE_CLEANUP_INTERVAL", "60"))  # seconds
 
 
