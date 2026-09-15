@@ -64,6 +64,8 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
+from core.migrations import run_schema_upgrades
+run_schema_upgrades()
 app.include_router(rwe_router)
 app.include_router(admin_router)
 
