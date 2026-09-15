@@ -395,3 +395,47 @@ class AuditLog(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
+
+
+class LLMProviderSlot(Base):
+    """One of up to 4 configurable LLM provider slots (priority order 1→4).
+
+    slot_index: 1-4 (priority: 1 = highest).
+    enabled: False = slot is skipped entirely.
+    name: free-form label (e.g. "OpenAI GPT-4o", "Groq Llama", "My Provider").
+    protocol: always "OpenAI-compatible" (all supported providers use this).
+    api_key_encrypted: XOR+base64 via encrypt_secret/decrypt_secret.
+    base_url: empty = use official OpenAI endpoint.
+    model: model name sent in the API call.
+    timeout_s: per-call HTTP timeout in seconds (0 = library default).
+    max_retries: per-slot retry budget for transient errors (0 = no retry, max 4).
+    rate_limit_rpm: optional advisory RPM cap (informational only for now).
+    """
+    __tablename__ = "hleo_llm_provider_slots"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    slot_index    = Column(Integer, unique=True, nullable=False)  # 1-4
+    enabled       = Column(Boolean, default=False)
+    name          = Column(String, default="")
+    protocol      = Column(String, default="OpenAI-compatible")
+    api_key_encrypted = Column(Text, nullable=True)
+    base_url      = Column(String, default="")
+    model         = Column(String, default="")
+    timeout_s     = Column(Float, default=60.0)
+    max_retries   = Column(Integer, default=2)   # per-slot; 0 = no retry
+    rate_limit_rpm = Column(Integer, nullable=True)
+    created_at    = Column(DateTime(timezone=True),
+                           default=lambda: datetime.now(timezone.utc))
+    updated_at    = Column(DateTime(timezone=True),
+                           default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    @property
+    def api_key(self) -> str:
+        from core.llm_provider import decrypt_secret
+        return decrypt_secret(self.api_key_encrypted or "")
+
+    @api_key.setter
+    def api_key(self, value: str) -> None:
+        from core.llm_provider import encrypt_secret
+        self.api_key_encrypted = encrypt_secret(value or "")

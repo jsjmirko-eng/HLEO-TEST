@@ -66,6 +66,14 @@ _BASE_DELAY = 2.0           # seconds; doubled each attempt
 _MAX_DELAY = 30.0           # cap a single backoff sleep
 _JITTER = 0.15              # ±15% jitter
 
+# Absolute cap on total LLM attempts across ALL provider stages per request.
+# Prevents retry × stage multiplication (e.g. 4 slots × 3 attempts = 12,
+# but the request cap stops the loop when this total is reached).
+MAX_TOTAL_REQUEST_ATTEMPTS = 10
+
+# Per-stage default when the caller does not specify.
+_DEFAULT_MAX_RETRIES_PER_STAGE = 2
+
 
 class QuotaExhaustedError(RuntimeError):
     """Raised when the OpenAI account has no credit/quota — NOT retryable."""
@@ -97,14 +105,78 @@ _RATE_LIMIT_SIGNALS = (
 )
 
 
-def classify_429(message: str) -> str:
-    """Classify a 429/error message into quota-exhausted vs rate-limited vs other.
+# HTTP 401/403 / "invalid key" → not retryable, switch provider immediately.
+_AUTH_ERROR_SIGNALS = (
+    "invalid api key",
+    "incorrect api key",
+    "invalid_api_key",
+    "authentication",
+    "unauthorized",
+    "permission denied",
+    "api key not found",
+)
+
+# 5xx server errors → retryable.
+_SERVER_ERROR_SIGNALS = (
+    "internal server error",
+    "service unavailable",
+    "bad gateway",
+    "gateway timeout",
+    "server error",
+)
+
+# Model / endpoint not found → not retryable.
+_NOT_FOUND_SIGNALS = (
+    "model not found",
+    "no such model",
+    "does not exist",
+    "invalid model",
+    "model_not_found",
+)
+
+
+def classify_error(exc: Exception, message: str) -> str:
+    """Classify an LLM API error for retry/fallback decisions.
 
     Returns one of:
-        "quota_exhausted"  — NOT retryable (raise immediately)
-        "rate_limit"        — retryable (backoff)
-        "other"             — retryable (treated as transient)
+        "quota_exhausted" — NOT retryable, no fallback benefit (billing hard stop)
+        "auth_error"      — NOT retryable on this provider; switch to next slot
+        "not_found"       — NOT retryable (bad model/endpoint config)
+        "rate_limit"      — retryable with backoff
+        "server_error"    — retryable with backoff (5xx)
+        "schema"          — retryable (JSON parse failure)
+        "other"           — retryable (unknown transient)
     """
+    msg = (message or "").lower()
+    # Check HTTP status code when available (openai>=1.x sets status_code).
+    status = getattr(exc, "status_code", None)
+    if status is not None:
+        if status in (401, 403):
+            return "auth_error"
+        if status == 404:
+            return "not_found"
+        if status == 429:
+            if any(s in msg for s in _QUOTA_SIGNALS):
+                return "quota_exhausted"
+            return "rate_limit"
+        if 500 <= status < 600:
+            return "server_error"
+    # Fallback: classify by message content.
+    if any(s in msg for s in _QUOTA_SIGNALS):
+        return "quota_exhausted"
+    if any(s in msg for s in _AUTH_ERROR_SIGNALS):
+        return "auth_error"
+    if any(s in msg for s in _NOT_FOUND_SIGNALS):
+        return "not_found"
+    if "429" in msg or any(s in msg for s in _RATE_LIMIT_SIGNALS):
+        return "rate_limit"
+    if any(s in msg for s in _SERVER_ERROR_SIGNALS):
+        return "server_error"
+    return "other"
+
+
+def classify_429(message: str) -> str:
+    """Legacy shim — kept for external callers. Maps to classify_error categories."""
     msg = (message or "").lower()
     if any(s in msg for s in _QUOTA_SIGNALS):
         return "quota_exhausted"
@@ -726,4 +798,151 @@ def call_llm_json(
     raise LLMCallError(
         f"{operation} failed after {MAX_TOTAL_ATTEMPTS} attempts "
         f"(last kind={last_kind}): {last_exc}"
+    ) from last_exc
+
+
+# ── NON-RETRYABLE error kinds — switch to next stage immediately ──────────────
+_NO_RETRY_KINDS = {"quota_exhausted", "auth_error", "not_found"}
+
+
+def call_llm_chain(
+    stages: list,   # list of ProviderStage from core.llm_manager
+    *,
+    messages: list,
+    model: str = "gpt-4o",
+    temperature: float = 0.0,
+    max_tokens: Optional[int] = None,
+    response_format: Optional[dict] = None,
+    json_mode: bool = False,
+    operation: str = "llm_call",
+) -> Any:
+    """Execute an LLM call against a chain of ProviderStage objects.
+
+    Retry policy
+    ------------
+    - Each stage gets its own budget: stage.max_retries (0 = 1 attempt only).
+    - Non-retryable errors (quota_exhausted, auth_error, not_found) skip to
+      the next stage immediately without consuming retry budget.
+    - A global counter MAX_TOTAL_REQUEST_ATTEMPTS caps total attempts across
+      ALL stages so retry × stage cannot multiply unboundedly.
+    - Backoff is exponential with jitter, same as the existing policy.
+    - json_mode=True: parse JSON, retries on JSONDecodeError.
+
+    Falls back to the legacy single-provider path when stages is empty.
+    """
+    if not stages:
+        # No chain: legacy path (env-based, may return None → LLMCallError).
+        from core.llm_provider import build_provider
+        legacy = build_provider()
+        if legacy is None:
+            raise LLMCallError(f"{operation}: no LLM provider configured.")
+        return call_llm(legacy, messages=messages, model=model,
+                        temperature=temperature, max_tokens=max_tokens,
+                        response_format=response_format, json_mode=json_mode,
+                        operation=operation)
+
+    if json_mode and response_format is None:
+        response_format = {"type": "json_object"}
+
+    total_attempts = 0
+    last_exc: Optional[Exception] = None
+    last_kind: str = "other"
+
+    for stage in stages:
+        resolved_model = stage.model_override or model
+        stage_budget = stage.max_retries + 1  # e.g. max_retries=2 → 3 attempts
+        stage_attempts = 0
+
+        for attempt in range(stage_budget):
+            if total_attempts >= MAX_TOTAL_REQUEST_ATTEMPTS:
+                raise LLMCallError(
+                    f"{operation}: global attempt cap ({MAX_TOTAL_REQUEST_ATTEMPTS}) "
+                    f"reached across all providers."
+                ) from last_exc
+
+            try:
+                kwargs: dict = {
+                    "model": resolved_model,
+                    "messages": messages,
+                    "temperature": temperature,
+                }
+                if max_tokens is not None:
+                    kwargs["max_tokens"] = max_tokens
+                if response_format is not None:
+                    kwargs["response_format"] = response_format
+
+                _ROUTING_STATS["openai_calls"] += 1
+                t0 = time.perf_counter()
+                resp = stage.client.chat.completions.create(**kwargs)
+                _record_call(operation, stage.name, resolved_model,
+                             latency_s=time.perf_counter() - t0, resp=resp,
+                             fallback=stage.slot_index > 1)
+                total_attempts += 1
+                raw = resp.choices[0].message.content
+                if raw is None:
+                    raise ValueError("LLM returned null content.")
+                if json_mode:
+                    return _extract_json(raw)
+                return raw
+
+            except json.JSONDecodeError as exc:
+                last_exc = exc
+                total_attempts += 1
+                stage_attempts += 1
+                _record_call(operation, stage.name, resolved_model,
+                             latency_s=0.0, error=f"json_decode: {exc}",
+                             fallback=stage.slot_index > 1)
+                last_kind = "schema"
+                remaining = stage_budget - attempt - 1
+                if remaining <= 0:
+                    break
+                delay = _backoff_delay(attempt)
+                logger.warning("%s [slot %d]: JSON parse error attempt %d/%d — retrying in %.1fs",
+                               operation, stage.slot_index, attempt + 1, stage_budget, delay)
+                time.sleep(delay)
+                continue
+
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                total_attempts += 1
+                stage_attempts += 1
+                msg = _extract_openai_message(exc)
+                if not isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                    _record_call(operation, stage.name, resolved_model,
+                                 latency_s=0.0, error=msg,
+                                 fallback=stage.slot_index > 1)
+
+                kind = classify_error(exc, msg)
+                last_kind = kind
+
+                if kind in _NO_RETRY_KINDS:
+                    logger.warning(
+                        "%s [slot %d %s]: %s — switching to next provider immediately. %s",
+                        operation, stage.slot_index, stage.name, kind, msg[:120],
+                    )
+                    if kind == "quota_exhausted":
+                        _ROUTING_STATS["fallbacks"] += 1
+                    break  # skip to next stage
+
+                remaining = stage_budget - attempt - 1
+                if remaining <= 0 or total_attempts >= MAX_TOTAL_REQUEST_ATTEMPTS:
+                    if remaining <= 0:
+                        logger.warning(
+                            "%s [slot %d %s]: exhausted after %d attempt(s) — switching to next provider.",
+                            operation, stage.slot_index, stage.name, stage_attempts,
+                        )
+                        _ROUTING_STATS["fallbacks"] += 1
+                    break
+
+                delay = _backoff_delay(attempt)
+                logger.warning(
+                    "%s [slot %d %s]: attempt %d/%d failed (%s) — retrying in %.1fs. %s",
+                    operation, stage.slot_index, stage.name,
+                    attempt + 1, stage_budget, kind, delay, msg[:120],
+                )
+                time.sleep(delay)
+
+    raise LLMCallError(
+        f"{operation} failed on all {len(stages)} provider(s) "
+        f"({total_attempts} total attempts, last kind={last_kind}): {last_exc}"
     ) from last_exc

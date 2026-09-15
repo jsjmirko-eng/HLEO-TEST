@@ -257,3 +257,18 @@ def build_provider(prefer: Optional[str] = None) -> Optional[LLMProvider]:
 def llm_available() -> bool:
     """True when at least one LLM provider can be built from the active config."""
     return build_provider() is not None
+
+
+def build_provider_chain():
+    """Return a list of ProviderStage from the configured slots.
+
+    Wraps core.llm_manager.get_provider_chain(). Returns [] when no
+    provider is configured. Callers that need a single LLMProvider for
+    backward compatibility should use build_provider() instead.
+    """
+    try:
+        from core.llm_manager import get_provider_chain
+        return get_provider_chain()
+    except Exception as exc:
+        logger.warning("build_provider_chain: failed — %s", exc)
+        return []

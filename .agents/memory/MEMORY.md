@@ -1,1 +1,2 @@
 - [Replit startup configuration](replit-startup.md) — validate `.replit` through Replit and recheck dependency-file diffs after installs.
+- [LLM Multi-slot System](llm-multislot.md) — sistema a 4 slot implementato; retry policy, endpoint admin, backward compat, tabella hleo_llm_provider_slots.

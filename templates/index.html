@@ -1125,47 +1125,14 @@
   </div>
 
   <div id="adminLlmConfigPanel" class="hidden ds-card p-5 mb-6">
-    <div class="flex items-center justify-between gap-3 mb-4">
+    <div class="flex items-center justify-between gap-3 mb-1">
       <div>
-        <div class="text-xs font-semibold tracking-[.18em] uppercase dark:text-slate-400 text-slate-500">LLM CONFIGURATION</div>
-        <p class="text-sm dark:text-slate-400 text-slate-500 mt-1">Central AI provider used by HLEO runtime operations.</p>
+        <div class="text-xs font-semibold tracking-[.18em] uppercase dark:text-slate-400 text-slate-500">LLM PROVIDERS</div>
+        <p class="text-sm dark:text-slate-400 text-slate-500 mt-1">Up to 4 providers in priority order. HLEO tries slot 1 first; on transient failure it falls back to the next enabled slot.</p>
       </div>
-      <span id="adminLlmStatusBadge" class="px-2 py-1 rounded-full text-[10px] font-semibold border border-slate-300 dark:border-slate-700 dark:text-slate-300 text-slate-600">Not configured</span>
+      <span id="adminLlmStatusBadge" class="px-2 py-1 rounded-full text-[10px] font-semibold border border-slate-300 dark:border-slate-700 dark:text-slate-300 text-slate-600 whitespace-nowrap">Not configured</span>
     </div>
-
-    <div id="adminLlmConfigError" class="hidden mb-3 rounded-lg border border-red-500/30 bg-red-500/5 text-red-400 text-xs px-3 py-2"></div>
-    <div id="adminLlmConfigSuccess" class="hidden mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-xs px-3 py-2"></div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label class="block text-xs font-medium dark:text-slate-400 text-slate-500 mb-1">Provider Name</label>
-        <input id="adminLlmProvider" type="text" placeholder="OpenRouter, Groq, Azure OpenAI, custom gateway" class="w-full px-3 py-2 text-sm rounded-lg dark:bg-[#0d1117] dark:border-[#30363d] dark:text-white border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-      </div>
-      <div>
-        <label class="block text-xs font-medium dark:text-slate-400 text-slate-500 mb-1">Protocol</label>
-        <input type="text" value="OpenAI-compatible" readonly class="w-full px-3 py-2 text-sm rounded-lg dark:bg-[#0d1117] dark:border-[#30363d] dark:text-white border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none opacity-90">
-      </div>
-      <div>
-        <label class="block text-xs font-medium dark:text-slate-400 text-slate-500 mb-1">API Key</label>
-        <div class="flex gap-2">
-          <input id="adminLlmApiKey" type="password" autocomplete="off" placeholder="••••••••" class="flex-1 px-3 py-2 text-sm rounded-lg dark:bg-[#0d1117] dark:border-[#30363d] dark:text-white border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-          <span id="adminLlmApiState" class="mt-2 text-[10px] uppercase tracking-wide dark:text-slate-500 text-slate-400">Not configured</span>
-        </div>
-      </div>
-      <div>
-        <label class="block text-xs font-medium dark:text-slate-400 text-slate-500 mb-1">Base URL</label>
-        <input id="adminLlmBaseUrl" type="text" placeholder="https://openrouter.ai/api/v1 or your OpenAI-compatible endpoint" class="w-full px-3 py-2 text-sm rounded-lg dark:bg-[#0d1117] dark:border-[#30363d] dark:text-white border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-      </div>
-      <div class="md:col-span-2">
-        <label class="block text-xs font-medium dark:text-slate-400 text-slate-500 mb-1">Model</label>
-        <input id="adminLlmModel" type="text" placeholder="openrouter/free, gpt-4o-mini, local-model" class="w-full px-3 py-2 text-sm rounded-lg dark:bg-[#0d1117] dark:border-[#30363d] dark:text-white border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
-      </div>
-    </div>
-
-    <div class="mt-4 flex flex-wrap gap-2">
-      <button id="adminLlmSaveBtn" class="ds-btn ds-btn-primary text-xs">Save Configuration</button>
-      <button id="adminLlmTestBtn" class="ds-btn ds-btn-ghost text-xs">Test Connection</button>
-    </div>
+    <div id="adminLlmSlotsContainer" class="mt-4 space-y-3"></div>
   </div>
 
   <!-- Category filter -->
@@ -4412,112 +4379,251 @@ function adminLogout() {
   fetch('/admin/logout', { method: 'POST', headers: hdr }).catch(() => {});
 }
 
-async function loadAdminLLMConfig() {
-  const panel = document.getElementById('adminLlmConfigPanel');
-  const providerEl = document.getElementById('adminLlmProvider');
-  const apiKeyEl = document.getElementById('adminLlmApiKey');
-  const baseUrlEl = document.getElementById('adminLlmBaseUrl');
-  const modelEl = document.getElementById('adminLlmModel');
-  const statusBadge = document.getElementById('adminLlmStatusBadge');
-  const apiState = document.getElementById('adminLlmApiState');
-  if (!panel || !providerEl || !apiKeyEl || !baseUrlEl || !modelEl) return;
+// ═══════════════ LLM MULTI-SLOT ADMIN ══════════════════════════════════════
+// Replaces the old single-provider loadAdminLLMConfig / save / test functions.
+// Each slot (1-4) is rendered as an independent collapsible card. Slot data is
+// loaded from GET /admin/llm-slots and saved per-slot with PUT /admin/llm-slots/{n}.
 
-  const token = _getAdminToken();
-  if (!token) {
-    panel.classList.add('hidden');
-    return;
-  }
+const _INPUT_CLS = 'w-full px-3 py-2 text-sm rounded-lg dark:bg-[#0d1117] dark:border-[#30363d] dark:text-white border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none';
+const _LABEL_CLS = 'block text-xs font-medium dark:text-slate-400 text-slate-500 mb-1';
+
+function _llmSlotCard(slot) {
+  const n = slot.slot_index;
+  const enabled = slot.enabled;
+  const hasKey = slot.api_key_configured;
+  const configured = hasKey || !!slot.base_url;
+
+  const dotCls = configured && enabled
+    ? 'inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5'
+    : 'inline-block w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-600 mr-1.5';
+
+  const retryOptions = [0,1,2,3,4].map(v =>
+    `<option value="${v}"${slot.max_retries === v ? ' selected' : ''}>${v} retr${v===1?'y':'ies'}</option>`
+  ).join('');
+
+  return `
+<div id="llmSlotCard${n}" class="rounded-xl border dark:border-[#30363d] border-slate-200 overflow-hidden">
+  <!-- Slot header (always visible, click to expand/collapse) -->
+  <div class="flex items-center gap-3 px-4 py-3 cursor-pointer select-none dark:bg-[#161b22] bg-slate-50"
+       onclick="_toggleSlot(${n})">
+    <span class="${dotCls}"></span>
+    <span class="text-xs font-semibold dark:text-slate-300 text-slate-600 w-14">Slot ${n}</span>
+    <span id="llmSlotName${n}" class="flex-1 text-sm dark:text-slate-200 text-slate-700 truncate">${esc(slot.name||'Provider '+n)}</span>
+    <span id="llmSlotEnabledBadge${n}" class="text-[10px] px-2 py-0.5 rounded-full font-semibold border ${enabled ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-slate-300 dark:border-slate-700 dark:text-slate-400 text-slate-500'}">${enabled ? 'Enabled' : 'Disabled'}</span>
+    <span class="text-xs dark:text-slate-500 text-slate-400">Priority ${n}</span>
+    <svg id="llmSlotChevron${n}" class="w-4 h-4 dark:text-slate-500 text-slate-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+  </div>
+
+  <!-- Slot body (collapsible) -->
+  <div id="llmSlotBody${n}" class="hidden px-4 pb-4 pt-3 space-y-3 dark:bg-[#0d1117] bg-white">
+    <!-- Error/success banners -->
+    <div id="llmSlotErr${n}" class="hidden rounded-lg border border-red-500/30 bg-red-500/5 text-red-400 text-xs px-3 py-2"></div>
+    <div id="llmSlotOk${n}" class="hidden rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-xs px-3 py-2"></div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <!-- Name -->
+      <div class="md:col-span-2">
+        <label class="${_LABEL_CLS}">Provider name (free-form label)</label>
+        <input id="llmSlotNameInput${n}" type="text" value="${esc(slot.name||'')}"
+               placeholder="e.g. OpenRouter, Groq, Azure, Local LLaMA"
+               class="${_INPUT_CLS}">
+      </div>
+      <!-- API Key -->
+      <div>
+        <label class="${_LABEL_CLS}">API Key</label>
+        <div class="flex items-center gap-2">
+          <input id="llmSlotKey${n}" type="password" autocomplete="off"
+                 placeholder="••••••••"
+                 class="flex-1 px-3 py-2 text-sm rounded-lg dark:bg-[#0d1117] dark:border-[#30363d] dark:text-white border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none">
+          <span id="llmSlotKeyState${n}" class="text-[10px] uppercase tracking-wide whitespace-nowrap ${hasKey ? 'text-emerald-500' : 'dark:text-slate-500 text-slate-400'}">${hasKey ? 'Set' : 'Not set'}</span>
+        </div>
+      </div>
+      <!-- Base URL -->
+      <div>
+        <label class="${_LABEL_CLS}">Base URL <span class="font-normal text-slate-400">(empty = OpenAI default)</span></label>
+        <input id="llmSlotUrl${n}" type="text" value="${esc(slot.base_url||'')}"
+               placeholder="https://openrouter.ai/api/v1"
+               class="${_INPUT_CLS}">
+      </div>
+      <!-- Model -->
+      <div>
+        <label class="${_LABEL_CLS}">Model</label>
+        <input id="llmSlotModel${n}" type="text" value="${esc(slot.model||'')}"
+               placeholder="gpt-4o-mini, llama-3.3-70b, …"
+               class="${_INPUT_CLS}">
+      </div>
+      <!-- Timeout -->
+      <div>
+        <label class="${_LABEL_CLS}">Timeout (seconds)</label>
+        <input id="llmSlotTimeout${n}" type="number" min="0" max="600" step="5"
+               value="${slot.timeout_s||60}"
+               class="${_INPUT_CLS}">
+      </div>
+      <!-- Max retries -->
+      <div>
+        <label class="${_LABEL_CLS}">Retries on transient errors <span class="font-normal text-slate-400">(0 = no retry)</span></label>
+        <select id="llmSlotRetries${n}" class="${_INPUT_CLS}">${retryOptions}</select>
+      </div>
+      <!-- Enabled toggle -->
+      <div class="md:col-span-2 flex items-center gap-2 pt-1">
+        <input id="llmSlotEnabled${n}" type="checkbox" ${enabled ? 'checked' : ''}
+               class="w-4 h-4 accent-brand-500 cursor-pointer">
+        <label for="llmSlotEnabled${n}" class="text-sm dark:text-slate-300 text-slate-600 cursor-pointer select-none">
+          Enable this provider slot
+        </label>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex flex-wrap gap-2 pt-1">
+      <button onclick="_saveSlot(${n})" class="ds-btn ds-btn-primary text-xs">Save</button>
+      <button onclick="_testSlot(${n})" class="ds-btn ds-btn-ghost text-xs">Test connection</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function _toggleSlot(n) {
+  const body = document.getElementById('llmSlotBody'+n);
+  const chev = document.getElementById('llmSlotChevron'+n);
+  if (!body) return;
+  const open = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', open);
+  if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+async function _saveSlot(n) {
+  const errEl = document.getElementById('llmSlotErr'+n);
+  const okEl  = document.getElementById('llmSlotOk'+n);
+  errEl?.classList.add('hidden'); okEl?.classList.add('hidden');
+
+  const body = {
+    enabled:   document.getElementById('llmSlotEnabled'+n)?.checked ?? false,
+    name:      document.getElementById('llmSlotNameInput'+n)?.value || '',
+    api_key:   document.getElementById('llmSlotKey'+n)?.value || null,
+    base_url:  document.getElementById('llmSlotUrl'+n)?.value || '',
+    model:     document.getElementById('llmSlotModel'+n)?.value || '',
+    timeout_s: parseFloat(document.getElementById('llmSlotTimeout'+n)?.value || '60') || 60,
+    max_retries: parseInt(document.getElementById('llmSlotRetries'+n)?.value || '2', 10),
+  };
+  // Empty api_key field → send null (don't overwrite stored key)
+  if (!body.api_key) body.api_key = null;
 
   try {
-    const r = await fetch('/admin/llm-config', { headers: _adminAuthHeader() });
+    const r = await fetch('/admin/llm-slots/'+n, {
+      method: 'PUT',
+      headers: Object.assign({'Content-Type':'application/json'}, _adminAuthHeader()||{}),
+      body: JSON.stringify(body),
+    });
+    if (r.status === 401) { _clearAdminToken(); _showAdminLoginPanel(true); return; }
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.detail||'Save failed');
+
+    // Update UI state
+    const hasKey = d.api_key_configured;
+    document.getElementById('llmSlotKeyState'+n).textContent = hasKey ? 'Set' : 'Not set';
+    document.getElementById('llmSlotKeyState'+n).className = 'text-[10px] uppercase tracking-wide whitespace-nowrap ' + (hasKey ? 'text-emerald-500' : 'dark:text-slate-500 text-slate-400');
+    document.getElementById('llmSlotKey'+n).value = '';
+    const nameDisp = d.name || 'Provider '+n;
+    document.getElementById('llmSlotName'+n).textContent = nameDisp;
+    document.getElementById('llmSlotNameInput'+n).value = d.name || '';
+    const badge = document.getElementById('llmSlotEnabledBadge'+n);
+    if (badge) {
+      badge.textContent = d.enabled ? 'Enabled' : 'Disabled';
+      badge.className = 'text-[10px] px-2 py-0.5 rounded-full font-semibold border ' + (d.enabled ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-slate-300 dark:border-slate-700 dark:text-slate-400 text-slate-500');
+    }
+    okEl.textContent = 'Slot '+n+' saved.';
+    okEl?.classList.remove('hidden');
+    _updateLlmStatusBadge();
+  } catch(e) {
+    errEl.textContent = e.message || 'Save failed.';
+    errEl?.classList.remove('hidden');
+  }
+}
+
+async function _testSlot(n) {
+  const errEl = document.getElementById('llmSlotErr'+n);
+  const okEl  = document.getElementById('llmSlotOk'+n);
+  errEl?.classList.add('hidden'); okEl?.classList.add('hidden');
+
+  const body = {
+    name:      document.getElementById('llmSlotNameInput'+n)?.value || '',
+    api_key:   document.getElementById('llmSlotKey'+n)?.value || null,
+    base_url:  document.getElementById('llmSlotUrl'+n)?.value || '',
+    model:     document.getElementById('llmSlotModel'+n)?.value || '',
+    timeout_s: parseFloat(document.getElementById('llmSlotTimeout'+n)?.value || '60') || 60,
+  };
+  if (!body.api_key) body.api_key = null;
+
+  try {
+    const r = await fetch('/admin/llm-slots/'+n+'/test', {
+      method: 'POST',
+      headers: Object.assign({'Content-Type':'application/json'}, _adminAuthHeader()||{}),
+      body: JSON.stringify(body),
+    });
+    if (r.status === 401) { _clearAdminToken(); _showAdminLoginPanel(true); return; }
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.detail||'Test failed');
+    okEl.textContent = d.message || 'Connection successful.';
+    okEl?.classList.remove('hidden');
+  } catch(e) {
+    errEl.textContent = e.message || 'Connection test failed.';
+    errEl?.classList.remove('hidden');
+  }
+}
+
+function _updateLlmStatusBadge() {
+  // Recount enabled+configured slots from the DOM.
+  let count = 0;
+  for (let n = 1; n <= 4; n++) {
+    const badge = document.getElementById('llmSlotEnabledBadge'+n);
+    const keyState = document.getElementById('llmSlotKeyState'+n);
+    const urlInput = document.getElementById('llmSlotUrl'+n);
+    if (badge?.textContent === 'Enabled') {
+      const hasKey = keyState?.textContent === 'Set';
+      const hasUrl = (urlInput?.value||'').trim() !== '';
+      if (hasKey || hasUrl) count++;
+    }
+  }
+  const statusBadge = document.getElementById('adminLlmStatusBadge');
+  if (statusBadge) {
+    statusBadge.textContent = count > 0 ? count+' slot'+(count>1?'s':'')+' active' : 'Not configured';
+    statusBadge.className = 'px-2 py-1 rounded-full text-[10px] font-semibold border whitespace-nowrap ' +
+      (count > 0 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-slate-300 dark:border-slate-700 dark:text-slate-300 text-slate-600');
+  }
+}
+
+async function loadAdminLLMConfig() {
+  const panel = document.getElementById('adminLlmConfigPanel');
+  const container = document.getElementById('adminLlmSlotsContainer');
+  if (!panel || !container) return;
+
+  const token = _getAdminToken();
+  if (!token) { panel.classList.add('hidden'); return; }
+
+  try {
+    const r = await fetch('/admin/llm-slots', { headers: _adminAuthHeader() });
     if (r.status === 401) {
-      _clearAdminToken();
-      panel.classList.add('hidden');
-      _showAdminLoginPanel(true);
-      return;
+      _clearAdminToken(); panel.classList.add('hidden'); _showAdminLoginPanel(true); return;
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    providerEl.value = d.provider || '';
-    baseUrlEl.value = d.base_url || '';
-    modelEl.value = d.model || '';
-    apiKeyEl.value = '';
-    apiState.textContent = d.api_key_configured ? 'Configured' : 'Not configured';
-    apiState.className = 'mt-2 text-[10px] uppercase tracking-wide ' + (d.api_key_configured ? 'text-emerald-500' : 'dark:text-slate-500 text-slate-400');
-    statusBadge.textContent = d.configured ? 'Configured' : 'Not configured';
-    statusBadge.className = 'px-2 py-1 rounded-full text-[10px] font-semibold border ' + (d.configured ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-slate-300 dark:border-slate-700 dark:text-slate-300 text-slate-600');
+    const slots = d.slots || [];
+
+    container.innerHTML = slots.map(_llmSlotCard).join('');
+
+    // Open slot 1 by default if the container was freshly rendered.
+    _toggleSlot(1);
+    _updateLlmStatusBadge();
     panel.classList.remove('hidden');
   } catch (e) {
     panel.classList.add('hidden');
   }
 }
 
-async function saveAdminLLMConfig() {
-  const provider = document.getElementById('adminLlmProvider')?.value || '';
-  const apiKey = document.getElementById('adminLlmApiKey')?.value || '';
-  const baseUrl = document.getElementById('adminLlmBaseUrl')?.value || '';
-  const model = document.getElementById('adminLlmModel')?.value || '';
-  const errEl = document.getElementById('adminLlmConfigError');
-  const okEl = document.getElementById('adminLlmConfigSuccess');
-
-  try {
-    const r = await fetch('/admin/llm-config', {
-      method: 'PUT',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, _adminAuthHeader() || {}),
-      body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl, model }),
-    });
-    if (r.status === 401) {
-      _clearAdminToken();
-      _showAdminLoginPanel(true);
-      return;
-    }
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.detail || 'Save failed');
-    okEl?.classList.remove('hidden');
-    errEl?.classList.add('hidden');
-    okEl.textContent = 'LLM configuration saved.';
-    const apiState = document.getElementById('adminLlmApiState');
-    if (apiState) {
-      apiState.textContent = d.api_key_configured ? 'Configured' : 'Not configured';
-      apiState.className = 'mt-2 text-[10px] uppercase tracking-wide ' + (d.api_key_configured ? 'text-emerald-500' : 'dark:text-slate-500 text-slate-400');
-    }
-    const statusBadge = document.getElementById('adminLlmStatusBadge');
-    if (statusBadge) {
-      statusBadge.textContent = d.configured ? 'Configured' : 'Not configured';
-      statusBadge.className = 'px-2 py-1 rounded-full text-[10px] font-semibold border ' + (d.configured ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-slate-300 dark:border-slate-700 dark:text-slate-300 text-slate-600');
-    }
-  } catch (e) {
-    errEl?.classList.remove('hidden');
-    okEl?.classList.add('hidden');
-    errEl.textContent = e.message || 'Failed to save configuration.';
-  }
-}
-
-async function testAdminLLMConfig() {
-  const provider = document.getElementById('adminLlmProvider')?.value || '';
-  const apiKey = document.getElementById('adminLlmApiKey')?.value || '';
-  const baseUrl = document.getElementById('adminLlmBaseUrl')?.value || '';
-  const model = document.getElementById('adminLlmModel')?.value || '';
-  const errEl = document.getElementById('adminLlmConfigError');
-  const okEl = document.getElementById('adminLlmConfigSuccess');
-
-  try {
-    const r = await fetch('/admin/llm-config/test', {
-      method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, _adminAuthHeader() || {}),
-      body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl, model }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.detail || 'Test failed');
-    okEl?.classList.remove('hidden');
-    errEl?.classList.add('hidden');
-    okEl.textContent = d.message || 'Connection successful.';
-  } catch (e) {
-    errEl?.classList.remove('hidden');
-    okEl?.classList.add('hidden');
-    errEl.textContent = e.message || 'Connection test failed.';
-  }
-}
+// Legacy stubs kept for any residual HTML onclick= references — they no-op.
+function saveAdminLLMConfig() {}
+function testAdminLLMConfig() {}
 
 async function loadAdminSources() {
   const grid = document.getElementById('adminSourcesGrid');

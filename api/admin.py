@@ -35,7 +35,7 @@ from core.admin_auth import (
 )
 from core.database import get_db
 from core.llm_provider import decrypt_secret, encrypt_secret, get_active_llm_settings
-from core.models import LLMConfig, SourceRegistry
+from core.models import LLMConfig, LLMProviderSlot, SourceRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -412,6 +412,148 @@ def test_llm_config(
         return {"ok": True, "provider": provider, "message": "Connection successful."}
     except Exception as exc:
         logger.warning("LLM test connection failed: %s", exc)
+        raise HTTPException(status_code=400, detail=f"Connection failed: {exc}")
+
+
+class LLMSlotRequest(BaseModel):
+    enabled: Optional[bool] = None
+    name: Optional[str] = ""
+    api_key: Optional[str] = None   # None = leave unchanged; "" = clear
+    base_url: Optional[str] = ""
+    model: Optional[str] = ""
+    timeout_s: Optional[float] = 60.0
+    max_retries: Optional[int] = 2
+    rate_limit_rpm: Optional[int] = None
+
+    model_config = {"extra": "ignore"}
+
+
+def _slot_to_dict(row) -> dict:
+    from core.llm_provider import decrypt_secret
+    api_key = decrypt_secret(row.api_key_encrypted or "")
+    return {
+        "slot_index": row.slot_index,
+        "enabled": row.enabled,
+        "name": row.name or "",
+        "protocol": row.protocol or "OpenAI-compatible",
+        "api_key_configured": bool(api_key.strip()),
+        "base_url": row.base_url or "",
+        "model": row.model or "",
+        "timeout_s": row.timeout_s if row.timeout_s is not None else 60.0,
+        "max_retries": row.max_retries if row.max_retries is not None else 2,
+        "rate_limit_rpm": row.rate_limit_rpm,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+@router.get("/llm-slots")
+def get_llm_slots(
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Return all 4 provider slots (creates missing ones as disabled)."""
+    from core.llm_manager import _ensure_slots_exist, _migrate_legacy_config
+    _migrate_legacy_config(db)
+    _ensure_slots_exist(db)
+    rows = db.execute(
+        select(LLMProviderSlot).order_by(LLMProviderSlot.slot_index)
+    ).scalars().all()
+    return {"slots": [_slot_to_dict(r) for r in rows]}
+
+
+@router.put("/llm-slots/{slot_index}")
+def save_llm_slot(
+    slot_index: int,
+    body: LLMSlotRequest,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Create or update one provider slot (slot_index 1-4)."""
+    if slot_index < 1 or slot_index > 4:
+        raise HTTPException(status_code=400, detail="slot_index must be 1-4.")
+
+    from core.llm_manager import _ensure_slots_exist, _migrate_legacy_config
+    _migrate_legacy_config(db)
+    _ensure_slots_exist(db)
+
+    row = db.execute(
+        select(LLMProviderSlot).where(LLMProviderSlot.slot_index == slot_index)
+    ).scalar_one_or_none()
+    if row is None:
+        row = LLMProviderSlot(slot_index=slot_index)
+        db.add(row)
+
+    if body.enabled is not None:
+        row.enabled = body.enabled
+    if body.name is not None:
+        row.name = body.name.strip()
+    if body.base_url is not None:
+        row.base_url = body.base_url.strip()
+    if body.model is not None:
+        row.model = body.model.strip()
+    if body.timeout_s is not None:
+        row.timeout_s = max(0.0, float(body.timeout_s))
+    if body.max_retries is not None:
+        row.max_retries = max(0, min(4, int(body.max_retries)))
+    row.rate_limit_rpm = body.rate_limit_rpm
+    row.protocol = "OpenAI-compatible"
+
+    # API key: None = leave unchanged; "" = clear; any other value = update.
+    if body.api_key is not None:
+        row.api_key_encrypted = encrypt_secret(body.api_key.strip()) if body.api_key.strip() else ""
+
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(row)
+    return _slot_to_dict(row)
+
+
+@router.post("/llm-slots/{slot_index}/test")
+def test_llm_slot(
+    slot_index: int,
+    body: LLMSlotRequest,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Test one slot's connection without persisting changes."""
+    if slot_index < 1 or slot_index > 4:
+        raise HTTPException(status_code=400, detail="slot_index must be 1-4.")
+
+    # Resolve api_key: use body value if provided, else load from DB.
+    api_key_raw = (body.api_key or "").strip()
+    if not api_key_raw:
+        from core.llm_manager import _ensure_slots_exist
+        _ensure_slots_exist(db)
+        row = db.execute(
+            select(LLMProviderSlot).where(LLMProviderSlot.slot_index == slot_index)
+        ).scalar_one_or_none()
+        if row:
+            api_key_raw = decrypt_secret(row.api_key_encrypted or "")
+
+    base_url = (body.base_url or "").strip()
+    if not api_key_raw and not base_url:
+        raise HTTPException(status_code=400,
+                            detail="Slot requires an API key or a Base URL to test.")
+
+    try:
+        from openai import OpenAI
+        kwargs: dict = {"api_key": api_key_raw or "generic"}
+        if base_url:
+            kwargs["base_url"] = base_url
+        timeout = float(body.timeout_s or 60.0)
+        if timeout > 0:
+            kwargs["timeout"] = timeout
+        client = OpenAI(**kwargs)
+        client.models.list()
+        return {
+            "ok": True,
+            "slot_index": slot_index,
+            "name": (body.name or "").strip() or f"Provider {slot_index}",
+            "message": "Connection successful.",
+        }
+    except Exception as exc:
+        logger.warning("LLM slot %d test failed: %s", slot_index, exc)
         raise HTTPException(status_code=400, detail=f"Connection failed: {exc}")
 
 
