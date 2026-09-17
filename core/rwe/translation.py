@@ -106,10 +106,8 @@ def _llm_translate(client, query: str, prompt: str) -> str:
 def _deterministic_fallback(query: str, lang: str) -> str:
     """English keyword query from provider-recognised entities (Catena C).
 
-    Resolves the source-language text through the vocabulary providers and
-    joins the canonical (English) entity names — e.g. "isotretinoina" →
-    "isotretinoin" (RxNorm), "dolore articolare" → "joint pain" (ConceptNet/
-    MeSH when mapped). Returns "" when no entity is recognised.
+    Preserves the original relation structure while canonicalising only the
+    entities that the providers actually recognise.
     """
     try:
         from core.vocab.entities import recognize
@@ -117,13 +115,56 @@ def _deterministic_fallback(query: str, lang: str) -> str:
         resolver = build_resolver_from_env()
         if resolver is None:
             return ""
+
+        text = (query or "").strip()
+        if not text:
+            return ""
+
+        # Lightweight deterministic translations for the relation words that
+        # otherwise would be dropped by the old entity-only join.
+        relation_replacements = (
+            (r"\bcaduta indotta da\b", "hair loss induced by"),
+            (r"\bcaduta dopo assunzione di\b", "hair loss after taking"),
+            (r"\btachicardia dopo assunzione di\b", "tachycardia after taking"),
+            (r"\bdopo assunzione di\b", "after taking"),
+            (r"\bdopo assunzione\b", "after taking"),
+            (r"\bindotta da\b", "induced by"),
+            (r"\bindotto da\b", "induced by"),
+            (r"\beritema cutaneo\b", "cutaneous erythema"),
+            (r"\bcaduta\b", "hair loss"),
+            (r"\btachicardia\b", "tachycardia"),
+            (r"\beritema\b", "erythema"),
+            (r"\bcutaneo\b", "cutaneous"),
+            (r"\bcutanea\b", "cutaneous"),
+            (r"\bassunzione\b", "taking"),
+        )
+        for pattern, replacement in relation_replacements:
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
         rec = recognize(query, lang or "en", resolver)
-        canonicals = []
+        seen: set[tuple[str, str]] = set()
         for _etype, canonical, _conf in rec.entities:
-            if canonical and canonical.lower() not in {
-                    c.lower() for c in canonicals}:
-                canonicals.append(canonical)
-        return " ".join(canonicals)
+            surface = (rec.surfaces or {}).get(canonical, canonical)
+            if not surface or not canonical:
+                continue
+            surf_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())
+            canon_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
+            if len(surf_tokens) <= 1 and len(canon_tokens) > 1:
+                continue
+            key = (surface.lower(), canonical.lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            if surface.lower() != canonical.lower():
+                text = re.sub(
+                    rf"(?<!\w){re.escape(surface)}(?!\w)",
+                    canonical,
+                    text,
+                    flags=re.IGNORECASE,
+                )
+
+        text = re.sub(r"\s+", " ", text).strip(" ,;:")
+        return text
     except Exception as exc:  # noqa: BLE001 — fallback must never raise
         logger.info("RWE deterministic translation fallback failed (%s)",
                     type(exc).__name__)

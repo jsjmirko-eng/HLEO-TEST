@@ -48,6 +48,26 @@ _GRAMMAR_STOPWORDS = {
     "und", "el", "los", "las", "una", "por", "para", "con",
 }
 
+# Relation/connective phrases are syntax, not terminology: they should stay
+# in the query text and never be canonicalised into clinical entities.
+_RELATION_CONNECTOR_PHRASES = {
+    "induced by",
+    "induced from",
+    "after taking",
+    "after applying",
+    "after using",
+    "after starting",
+    "since taking",
+    "since starting",
+    "caused by",
+    "due to",
+    "dopo assunzione",
+    "dopo aver",
+    "indotta da",
+    "indotto da",
+}
+
+
 
 @dataclass
 class EntityRecognition:
@@ -80,6 +100,8 @@ def _candidates(text: str, max_n: int = 3) -> List[str]:
     uniq: List[str] = []
     for c in out:
         if not c or len(c) < 3 or c in seen:
+            continue
+        if c in _RELATION_CONNECTOR_PHRASES:
             continue
         if all(tok in _GRAMMAR_STOPWORDS for tok in c.split()):
             continue

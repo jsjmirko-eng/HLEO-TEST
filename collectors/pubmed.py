@@ -59,59 +59,66 @@ class PubMedCollector:
         if not ids:
             return []
 
-        time.sleep(inter_sleep)
-
-        # 2 — summary (title, authors, journal)
-        r2 = http_get(
-            self.SUMMARY_URL,
-            params={"db": "pubmed", "id": ",".join(ids), "retmode": "json"},
-            timeout=timeout,
-            max_retries=max_retries,
-            backoff_base_s=backoff_base,
-            backoff_max_s=backoff_max,
-        )
-        details = r2.json()
-
-        time.sleep(inter_sleep)
-
-        # 3 — fetch abstracts as plain text, one call for all IDs
-        abstract_map: dict[str, str] = {}
-        try:
-            r3 = http_get(
-                self.FETCH_URL,
-                params={
-                    "db": "pubmed",
-                    "id": ",".join(ids),
-                    "rettype": "abstract",
-                    "retmode": "text",
-                },
-                timeout=timeout,
-                max_retries=max_retries,
-                backoff_base_s=backoff_base,
-                backoff_max_s=backoff_max,
-            )
-            if r3.status_code == 200:
-                blocks = r3.text.split("\n\n\n")
-                for i, pmid in enumerate(ids):
-                    if i < len(blocks):
-                        abstract_map[pmid] = blocks[i].strip()
-        except Exception:
-            pass
-
         results = []
-        for pmid in ids:
-            art = details["result"].get(pmid, {})
-            results.append(
-                SearchResult(
-                    title=art.get("title", ""),
-                    source="PubMed",
-                    authors=[a.get("name", "") for a in art.get("authors", [])],
-                    pmid=pmid,
-                    abstract=abstract_map.get(pmid, ""),
-                    metadata={
-                        "journal": art.get("fulljournalname", ""),
-                        "pubdate": art.get("pubdate", ""),
-                    },
+        batch_size = 100
+        for start in range(0, len(ids), batch_size):
+            batch_ids = ids[start:start + batch_size]
+
+            time.sleep(inter_sleep)
+
+            # 2 — summary (title, authors, journal)
+            try:
+                r2 = http_get(
+                    self.SUMMARY_URL,
+                    params={"db": "pubmed", "id": ",".join(batch_ids), "retmode": "json"},
+                    timeout=timeout,
+                    max_retries=max_retries,
+                    backoff_base_s=backoff_base,
+                    backoff_max_s=backoff_max,
                 )
-            )
+                details = r2.json()
+            except Exception:
+                continue
+
+            time.sleep(inter_sleep)
+
+            # 3 — fetch abstracts as plain text, one call per batch
+            abstract_map: dict[str, str] = {}
+            try:
+                r3 = http_get(
+                    self.FETCH_URL,
+                    params={
+                        "db": "pubmed",
+                        "id": ",".join(batch_ids),
+                        "rettype": "abstract",
+                        "retmode": "text",
+                    },
+                    timeout=timeout,
+                    max_retries=max_retries,
+                    backoff_base_s=backoff_base,
+                    backoff_max_s=backoff_max,
+                )
+                if r3.status_code == 200:
+                    blocks = r3.text.split("\n\n\n")
+                    for i, pmid in enumerate(batch_ids):
+                        if i < len(blocks):
+                            abstract_map[pmid] = blocks[i].strip()
+            except Exception:
+                pass
+
+            for pmid in batch_ids:
+                art = details.get("result", {}).get(pmid, {})
+                results.append(
+                    SearchResult(
+                        title=art.get("title", ""),
+                        source="PubMed",
+                        authors=[a.get("name", "") for a in art.get("authors", [])],
+                        pmid=pmid,
+                        abstract=abstract_map.get(pmid, ""),
+                        metadata={
+                            "journal": art.get("fulljournalname", ""),
+                            "pubdate": art.get("pubdate", ""),
+                        },
+                    )
+                )
         return results

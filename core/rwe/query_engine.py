@@ -689,7 +689,8 @@ class RWEQueryEngine:
         # If query looks causal/adverse and entity is condition/symptom, require event terms
         q = (base_query or "").lower()
         adverse_cues = {"loss", "shedding", "alopecia", "effluvium", "fall", "fallout", "caduta", "peggioramento", "worse", "side", "effect", "effects", "effetto", "effetti"}
-        causal_markers = ("cause", "causa", "causes", "after", "sospetto", "side effect", "effetto", "dopo")
+        causal_markers = ("cause", "causa", "causes", "after", "sospetto", "side effect", "effetto", "dopo", "induced", "induced by")
+
         if etype in ("condition", "symptom") and any(m in q for m in causal_markers):
             joined = " ".join(toks_clean)
             if not any(ev in joined for ev in adverse_cues):
