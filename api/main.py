@@ -1485,6 +1485,7 @@ class SynthesisRelation(BaseModel):
     original_query: str = ""
     agent: dict = {}
     event: dict = {}
+    anatomical_site: dict = {}
     manifestation: dict = {}
     temporal: str = ""
     relation_type: str = "unknown"

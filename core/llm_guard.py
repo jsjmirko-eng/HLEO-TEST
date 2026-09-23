@@ -709,6 +709,7 @@ def call_llm_json(
     model: str = "gpt-4o",
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
+    response_format: Optional[dict] = None,
     operation: str = "llm_json_call",
 ) -> dict:
     """Call LLM, parse JSON, with the same single bounded retry policy.
@@ -727,7 +728,7 @@ def call_llm_json(
             return call_llm_chain(
                 chain, messages=messages, model=model,
                 temperature=temperature, max_tokens=max_tokens,
-                response_format=None, json_mode=True,
+                response_format=response_format, json_mode=True,
                 operation=operation,
             )
         raw_client, resolved_model, provider_name, fallback = provider
@@ -735,7 +736,7 @@ def call_llm_json(
             operation=operation, raw_client=raw_client, model=resolved_model,
             provider_name=provider_name, fallback=fallback, messages=messages,
             temperature=temperature, max_tokens=max_tokens,
-            response_format=None, json_mode=True,
+            response_format=response_format, json_mode=True,
         )
 
     client, model, fb_client, fb_model, route_name = _route(operation, client, model)
@@ -765,7 +766,7 @@ def call_llm_json(
                 "messages": messages,
                 "temperature": temperature,
             }
-            kwargs["response_format"] = {"type": "json_object"}
+            kwargs["response_format"] = response_format or {"type": "json_object"}
             if max_tokens is not None:
                 kwargs["max_tokens"] = max_tokens
 

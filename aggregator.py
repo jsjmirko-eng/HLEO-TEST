@@ -26,7 +26,10 @@ Deduplication key priority
 When two records share a key, the one with the higher completeness score
 is kept and the duplicate is discarded from the losing source list.
 """
+import hashlib
 import logging
+import re
+import unicodedata
 
 from collectors.pubmed import PubMedCollector
 from collectors.europepmc import EuropePMCCollector
@@ -47,51 +50,67 @@ class HLEOAggregator:
 
     # ── Deduplication key ─────────────────────────────────────────────────────
 
-    def create_key(self, article) -> str | None:
-        """
-        Return a canonical deduplication key for a SearchResult.
+    @staticmethod
+    def _normalize_doi(value: object) -> str:
+        value = str(value or "").strip().lower()
+        value = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", value)
+        value = re.sub(r"^doi:\s*", "", value)
+        return value.rstrip(". ")
 
-        Priority: PMID → DOI → NCT ID → EuropePMC non-numeric ID → normalised title.
+    @staticmethod
+    def _normalize_title(value: object) -> str:
+        text = unicodedata.normalize("NFKC", str(value or "")).lower()
+        text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
+        return " ".join(text.split())
 
-        PMID is checked **before** DOI because it is the only identifier that is
-        guaranteed to be identical across PubMed and Europe PMC for the same paper.
-        Europe PMC returns the PMID of MEDLINE-indexed papers in its ``id`` field as
-        a plain integer string, so we promote any all-digit ``metadata["id"]`` to a
-        PMID key.  This catches the common case where PubMed returns a paper without
-        a DOI while Europe PMC returns the same paper with a DOI — without this rule
-        the two keys would never match and the duplicate would slip through.
-        """
+    @classmethod
+    def _document_fingerprint(cls, article) -> str | None:
+        title = cls._normalize_title(getattr(article, "title", ""))
+        abstract = " ".join((getattr(article, "abstract", "") or "").lower().split())
+        year = str(getattr(article, "year", "") or "").strip()
+        if not title or not abstract:
+            return None
+        payload = f"{title}|{year}|{abstract}".encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    @classmethod
+    def _identity_keys(cls, article) -> list[str]:
+        """Return strong identifiers plus a conservative content identity."""
         meta = getattr(article, "metadata", {}) or {}
+        keys: list[str] = []
 
-        # 1. PMID — stable across PubMed and Europe PMC (MEDLINE-indexed papers)
         pmid = getattr(article, "pmid", None)
         if not pmid:
-            # Europe PMC stores the PMID in metadata["id"] as a numeric string
             epmc_id = str(meta.get("id", "")).strip()
             if epmc_id.isdigit():
                 pmid = epmc_id
         if pmid:
-            return f"pmid:{str(pmid).strip()}"
+            keys.append(f"pmid:{str(pmid).strip()}")
 
-        # 2. DOI — reliable for non-MEDLINE papers that have one
-        if getattr(article, "doi", None):
-            return f"doi:{article.doi.strip().lower()}"
+        doi = cls._normalize_doi(getattr(article, "doi", None))
+        if doi:
+            keys.append(f"doi:{doi}")
 
-        # 3. NCT ID — canonical identifier for ClinicalTrials entries
-        nct = meta.get("nct_id", "")
-        if nct and nct.lower() not in ("", "unknown"):
-            return f"nct:{nct.strip().upper()}"
+        nct = str(meta.get("nct_id", "") or "").strip()
+        if nct and nct.lower() != "unknown":
+            keys.append(f"nct:{nct.upper()}")
 
-        # 4. Europe PMC non-numeric internal ID (preprint servers, etc.)
         epmc_id = str(meta.get("id", "")).strip()
         if epmc_id:
-            return f"epmcid:{epmc_id}"
+            keys.append(f"epmcid:{epmc_id}")
 
-        # 5. Normalised title (last resort — not unique across journals)
-        if getattr(article, "title", None):
-            return "title:" + " ".join(article.title.lower().split())
+        fingerprint = cls._document_fingerprint(article)
+        if fingerprint:
+            keys.append(f"docfp:{fingerprint}")
+        elif getattr(article, "title", None):
+            keys.append(f"title:{cls._normalize_title(article.title)}")
+        return keys
 
-        return None
+    @classmethod
+    def create_key(cls, article) -> str | None:
+        """Return the strongest canonical identity available for an article."""
+        keys = cls._identity_keys(article)
+        return keys[0] if keys else None
 
     # ── Completeness scoring ──────────────────────────────────────────────────
 
@@ -189,44 +208,65 @@ class HLEOAggregator:
                 if entry not in provenance:
                     provenance.append(entry)
 
-        # key → (source_name, article, score)
-        winners: dict[str, tuple[str, object, float]] = {}
+        # canonical key → (source_name, article, score, identity_keys)
+        winners: dict[str, tuple[str, object, float, set[str]]] = {}
+        identity_index: dict[str, str] = {}
         duplicate_keys: list[tuple[str, str, str]] = []  # (key, loser_src, winner_src)
         keyless_survivors: list[tuple[str, object]] = []
 
         for src, art in tagged:
-            key = self.create_key(art)
-
-            if key is None:
-                # No key at all — keep unconditionally, cannot dedup
+            identity_keys = self._identity_keys(art)
+            if not identity_keys:
                 keyless_survivors.append((src, art))
                 continue
+
+            strong_keys = [key for key in identity_keys
+                           if not key.startswith("docfp:") and not key.startswith("title:")]
+            canonical_key = next(
+                (identity_index[key] for key in strong_keys if key in identity_index),
+                None,
+            )
+            if canonical_key is None:
+                fingerprint = next((key for key in identity_keys if key.startswith("docfp:")), None)
+                candidate = identity_index.get(fingerprint) if fingerprint else None
+                if candidate is not None:
+                    existing_strong = winners[candidate][3]
+                    new_dois = {key for key in strong_keys if key.startswith("doi:")}
+                    old_dois = {key for key in existing_strong if key.startswith("doi:")}
+                    if not (new_dois and old_dois and new_dois != old_dois):
+                        canonical_key = candidate
 
             score = self.completeness_score(art)
             src_priority = _SOURCE_PRIORITY.get(src, 99)
 
-            if key not in winners:
-                winners[key] = (src, art, score)
-            else:
-                win_src, win_art, win_score = winners[key]
-                win_priority = _SOURCE_PRIORITY.get(win_src, 99)
+            if canonical_key is None:
+                canonical_key = strong_keys[0] if strong_keys else identity_keys[0]
+                winners[canonical_key] = (src, art, score, set(identity_keys))
+                for key in identity_keys:
+                    identity_index[key] = canonical_key
+                continue
 
-                # Replace if strictly better score, or equal score but higher-priority source
-                if score > win_score or (
-                    score == win_score and src_priority < win_priority
-                ):
-                    # Current article is better — demote the old winner.
-                    merge_provenance(art, win_art)
-                    duplicate_keys.append((key, win_src, src))
-                    winners[key] = (src, art, score)
-                else:
-                    # Existing winner is better — discard current.
-                    merge_provenance(win_art, art)
-                    duplicate_keys.append((key, src, win_src))
+            win_src, win_art, win_score, win_identity_keys = winners[canonical_key]
+            win_priority = _SOURCE_PRIORITY.get(win_src, 99)
+
+            # Replace if strictly better score, or equal score but higher-priority source.
+            if score > win_score or (score == win_score and src_priority < win_priority):
+                merge_provenance(art, win_art)
+                duplicate_keys.append((canonical_key, win_src, src))
+                merged_keys = win_identity_keys | set(identity_keys)
+                winners[canonical_key] = (src, art, score, merged_keys)
+                for key in merged_keys:
+                    identity_index[key] = canonical_key
+            else:
+                merge_provenance(win_art, art)
+                duplicate_keys.append((canonical_key, src, win_src))
+                win_identity_keys.update(identity_keys)
+                for key in win_identity_keys:
+                    identity_index[key] = canonical_key
 
         # Rebuild per-source lists (winners + keyless survivors)
         result: dict[str, list] = {src: [] for src in scientific_keys}
-        for key, (src, art, _) in winners.items():
+        for _key, (src, art, _, _identity_keys) in winners.items():
             result[src].append(art)
         for src, art in keyless_survivors:
             result[src].append(art)

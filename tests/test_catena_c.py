@@ -10,6 +10,8 @@ from unittest.mock import patch
 import pytest
 
 from core.relational_search import ClinicalRelation, RelationalSearch
+from aggregator import HLEOAggregator
+
 from core.search_result import SearchResult
 
 
@@ -317,6 +319,150 @@ def test_relation_match_boosts_adverse_effect_query(monkeypatch):
     assert flat[0].metadata["relation_bonus"] > 0
     assert flat[0].title == "Minoxidil hypertrichosis report"
     assert flat[0].metadata["relation_bonus"] > flat[1].metadata["relation_bonus"]
+
+
+
+def test_judge_prompt_contains_complete_relation_context(monkeypatch):
+    relation = ClinicalRelation(
+        original_query="ricrescita sulle tempie con dutasteride",
+        agent={"term": "dutasteride", "normalized": "dutasteride", "role": "drug"},
+        event={"term": "ricrescita", "normalized": "hair regrowth"},
+        anatomical_site={"term": "tempie", "normalized": "temporal region", "role": "site"},
+        manifestation={"term": "alopecia androgenetica", "normalized": "androgenetic alopecia", "role": "condition"},
+        temporal="during treatment",
+        relation_type="efficacy",
+        scientific_query="dutasteride AND hair regrowth",
+        canonical_query="dutasteride AND hair regrowth",
+        relation_phrases=["dutasteride-induced hair regrowth"],
+    )
+    rs = RelationalSearch.__new__(RelationalSearch)
+    rs._client = object()
+    captured = {}
+
+    def fake_llm_json(prompt, max_tokens=900, response_format=None):
+        captured["prompt"] = prompt
+        captured["response_format"] = response_format
+        return {"results": [{"i": 0, "tier": "A", "label": "relevant",
+                              "score": 1.0, "reason": "direct"}]}
+
+    monkeypatch.setattr(rs, "_llm_json", fake_llm_json)
+    rs._llm_judge([_article("Dutasteride temporal hairline regrowth", "direct study")], relation)
+    prompt = captured["prompt"]
+    for value in (
+        relation.original_query, "dutasteride", "hair regrowth", "androgenetic alopecia",
+        "temporal region", "during treatment", "efficacy", "dutasteride AND hair regrowth",
+        "dutasteride-induced hair regrowth", "Dutasteride temporal hairline regrowth",
+    ):
+        assert value in prompt
+
+
+
+def test_judge_prompt_includes_complete_abstract(monkeypatch):
+    relation = _relation("ricrescita sulle tempie con dutasteride")
+    rs = RelationalSearch.__new__(RelationalSearch)
+    captured = {}
+    abstract = "context " * 120 + "demonstrated successful DHT inhibition in vitro and in vivo"
+
+    def fake_llm_json(prompt, max_tokens=900, response_format=None):
+        captured["prompt"] = prompt
+        return {"results": []}
+
+    monkeypatch.setattr(rs, "_llm_json", fake_llm_json)
+    rs._llm_judge([_article("Microneedle hair regeneration", abstract)], relation)
+    assert "demonstrated successful DHT inhibition in vitro and in vivo" in captured["prompt"]
+
+
+def test_dedup_normalizes_doi_and_bridges_missing_doi():
+    abstract = "The same complete abstract for the publication."
+    with_doi = _article(
+        "Bifunctional patch for hair regeneration.", abstract,
+        source="europepmc", doi="https://doi.org/10.1000/ABC."
+    )
+    without_doi = _article(
+        "Bifunctional patch for hair regeneration", abstract,
+        source="europepmc", doi=None
+    )
+    cleaned, stats = HLEOAggregator().deduplicate_across_sources({
+        "pubmed": [], "europepmc": [without_doi, with_doi],
+        "clinicaltrials": [], "reddit": [],
+    })
+    assert stats["unique"] == 1
+    assert len(cleaned["europepmc"]) == 1
+    assert cleaned["europepmc"][0].doi == "https://doi.org/10.1000/ABC."
+    assert HLEOAggregator.create_key(with_doi) == "doi:10.1000/abc"
+
+
+def test_dedup_keeps_distinct_articles_with_similar_titles():
+    first = _article(
+        "Dutasteride treatment of androgenetic alopecia",
+        "An oral treatment trial measured hair density after six months.",
+        source="europepmc", year=2025,
+    )
+    second = _article(
+        "Dutasteride treatment in androgenetic alopecia",
+        "A topical formulation study measured follicular delivery only.",
+        source="europepmc", year=2025,
+    )
+    cleaned, stats = HLEOAggregator().deduplicate_across_sources({
+        "pubmed": [], "europepmc": [first, second],
+        "clinicaltrials": [], "reddit": [],
+    })
+    assert stats["unique"] == 2
+    assert len(cleaned["europepmc"]) == 2
+
+
+def test_semantic_judge_tier_keeps_a_and_excludes_c(monkeypatch):
+    relation = ClinicalRelation(
+        original_query="ricrescita sulle tempie con dutasteride",
+        agent={"term": "dutasteride", "normalized": "dutasteride", "role": "drug",
+               "search_terms": ["dutasteride"]},
+        event={"term": "ricrescita", "normalized": "hair regrowth"},
+        anatomical_site={"term": "tempie", "normalized": "temporal region", "role": "site",
+                         "search_terms": ["temples", "temporal region"]},
+        manifestation={"term": "alopecia androgenetica", "normalized": "androgenetic alopecia",
+                       "role": "condition", "search_terms": ["androgenetic alopecia"]},
+        relation_type="efficacy",
+        scientific_query="dutasteride AND hair regrowth",
+        canonical_query="dutasteride AND hair regrowth",
+    )
+
+    def by_query(query, source):
+        return [
+            _article(
+                "Dutasteride and temporal hairline regrowth in androgenetic alopecia",
+                "A clinical study evaluates dutasteride for temporal hairline regrowth in androgenetic alopecia.",
+                source, doi="10.1/direct",
+            ),
+            _article(
+                "Review of androgenetic alopecia treatments",
+                "A broad review mentions dutasteride among several androgenetic alopecia treatments.",
+                source, doi="10.1/generic",
+            ),
+        ]
+
+    rs, _ = _search_with_stubs(monkeypatch, by_query)
+    monkeypatch.setattr(RelationalSearch, "_extract_relation", lambda self, q: relation)
+
+    def judge(self, batch, rel):
+        return [
+            {
+                "i": i,
+                "tier": "A" if "temporal" in article.title.lower() else "C",
+                "label": "relevant" if "temporal" in article.title.lower() else "partial",
+                "score": 1.0 if "temporal" in article.title.lower() else 0.15,
+                "reason": "direct relation" if "temporal" in article.title.lower() else "generic context",
+            }
+            for i, article in enumerate(batch)
+        ]
+
+    monkeypatch.setattr(RelationalSearch, "_llm_judge", judge)
+    out = rs.search(relation.original_query)
+    flat = [item for src in ("pubmed", "europepmc", "clinicaltrials") for item in out[src]]
+    assert [item.title for item in flat] == [
+        "Dutasteride and temporal hairline regrowth in androgenetic alopecia"
+    ]
+    assert flat[0].metadata["semantic_tier"] == "A"
+    assert flat[0].metadata["final_score"] >= 0.20
 
 # ── 6. RWE endpoint pagination (30 per page, cached) ────────────────────────
 

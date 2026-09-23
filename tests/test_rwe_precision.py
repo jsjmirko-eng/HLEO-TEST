@@ -102,6 +102,20 @@ def test_sanitize_keeps_multitoken_surface_lexical_gap():
     assert [c for _t, c, _conf in kept] == ["alopecia"]
 
 
+
+def test_sanitize_drops_provider_description_canonical():
+    entities = [
+        ("drug", "finasteride | serum or plasma | drug toxicology", 0.6),
+        ("drug", "finasteride", 0.95),
+    ]
+    surfaces = {
+        "finasteride | serum or plasma | drug toxicology": "or",
+        "finasteride": "finasteride",
+    }
+    kept, _, _ = RWEQueryEngine._sanitize_entities(entities, {}, surfaces)
+    assert [c for _t, c, _conf in kept] == ["finasteride"]
+
+
 # ── Relation context ─────────────────────────────────────────────────────────
 
 def test_context_agent_and_manifestation_terms():

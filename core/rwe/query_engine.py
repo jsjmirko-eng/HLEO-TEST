@@ -363,13 +363,24 @@ class RWEQueryEngine:
         """
         keep_canonicals = set()
         kept = []
+        grammar = {
+            "the", "a", "an", "of", "to", "in", "on", "for", "and", "or",
+            "with", "without", "di", "il", "la", "per", "con", "e", "una",
+        }
         for etype, canonical, conf in entities or []:
-            surface = (surfaces or {}).get(canonical, canonical)
-            surf_tokens = [t for t in re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())]
-            if len(surf_tokens) <= 1:
-                canon_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
-                if len(canon_tokens) > 1:
-                    continue
+            canonical = str(canonical or "").strip()
+            surface = str((surfaces or {}).get(canonical, canonical) or "").strip()
+            surf_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())
+            canon_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
+            # Providers can return concatenated descriptions such as
+            # "finasteride | serum or plasma | drug toxicology" for a short
+            # surface. They are lookup artefacts, not user concepts.
+            if "|" in canonical or (surf_tokens and set(surf_tokens) <= grammar):
+                continue
+            if len(surf_tokens) <= 1 and len(canon_tokens) > 1:
+                continue
+            if len(canon_tokens) > 6 and not set(surf_tokens).intersection(canon_tokens):
+                continue
             keep_canonicals.add(canonical)
             kept.append((etype, canonical, conf))
         # Same query surface resolved to several provider concepts (e.g. MeSH
