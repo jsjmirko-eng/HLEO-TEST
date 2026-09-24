@@ -124,18 +124,22 @@ def _ensure_slots_exist(db) -> None:
     db.commit()
 
 
-def get_provider_chain() -> List[ProviderStage]:
+def get_provider_chain(*, migrate_legacy: bool = True,
+                        include_env_fallback: bool = True) -> List[ProviderStage]:
     """Return enabled provider stages in priority order (slot 1 first).
 
-    Falls back to a legacy single-provider config if no slots are configured.
-    Returns [] when no provider is available.
+    ``migrate_legacy=False`` and ``include_env_fallback=False`` are used by the
+    compatibility bridge when deciding whether an Admin slot is configured;
+    they prevent an empty slot lookup from rewriting or building another
+    provider before the legacy path can handle it.
     """
     try:
         from core.database import SessionLocal
         from core.models import LLMProviderSlot
         db = SessionLocal()
         try:
-            _migrate_legacy_config(db)
+            if migrate_legacy:
+                _migrate_legacy_config(db)
             _ensure_slots_exist(db)
             rows = db.execute(
                 select(LLMProviderSlot)
@@ -154,8 +158,9 @@ def get_provider_chain() -> List[ProviderStage]:
     except Exception as exc:
         logger.warning("LLMManager: DB unavailable — %s", exc)
 
-    # DB unavailable or no slots: fall back to env vars.
-    return _chain_from_env()
+    # DB unavailable or no slots: fall back to env vars unless the caller is
+    # probing only for an Admin-managed slot.
+    return _chain_from_env() if include_env_fallback else []
 
 
 def _chain_from_env() -> List[ProviderStage]:

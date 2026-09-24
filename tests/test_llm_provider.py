@@ -32,7 +32,7 @@ from core.llm_guard import (
     call_llm_json,
 )
 from core.database import SessionLocal, engine, Base
-from core.models import LLMConfig
+from core.models import LLMConfig, LLMProviderSlot
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,6 +59,26 @@ def _patch_openai_ctor(monkeypatch):
 
     monkeypatch.setattr("openai.OpenAI", fake_openai)
     return calls
+
+
+def _save_admin_slot(*, name="OpenAI", model="admin-model", base_url="https://api.openai.com/v1"):
+    Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        db.query(LLMConfig).delete()
+        db.query(LLMProviderSlot).delete()
+        db.add(LLMProviderSlot(
+            slot_index=1,
+            enabled=True,
+            name=name,
+            protocol="OpenAI-compatible",
+            api_key_encrypted=lp.encrypt_secret("admin-key"),
+            base_url=base_url,
+            model=model,
+            timeout_s=60.0,
+            max_retries=0,
+        ))
+        db.commit()
+
 
 
 @pytest.fixture(autouse=True)
@@ -111,6 +131,22 @@ class TestProviderSelection:
             assert p is not None and p.name == provider_name
             assert calls == [{"api_key": "test-key", "base_url": base_url}]
 
+    def test_admin_slot_is_runtime_provider(self, monkeypatch):
+        _save_admin_slot(name="Admin OpenAI", model="admin-model")
+        calls = _patch_openai_ctor(monkeypatch)
+
+        provider = build_provider()
+
+        assert provider is not None
+        assert provider.name == "Admin OpenAI"
+        assert provider.model_override == "admin-model"
+        assert provider.use_chain is True
+        assert calls == [{
+            "api_key": "admin-key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 60.0,
+        }]
+
     def test_local_provider_via_base_url(self, monkeypatch):
         """Local provider uses base_url for the endpoint."""
         monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:1234/v1")
@@ -145,6 +181,53 @@ class TestProviderSelection:
         p = build_provider()
         assert p is not None and p.name == "my-provider"
         assert calls == [{"api_key": "db-key", "base_url": "https://db.example.com/v1"}]
+
+
+class TestAdminProviderWiring:
+    def test_admin_slot_is_loaded_after_orchestrator_init(self, monkeypatch):
+        from core.orchestrator import QueryOrchestrator
+        QueryOrchestrator._cache.clear()
+        orchestrator = QueryOrchestrator()
+        assert orchestrator._client is None
+
+        _save_admin_slot(model="late-admin-model")
+        raw = _raw_client([_choice(json.dumps({"lang": "en", "query_en": "hair loss"}))])
+        monkeypatch.setattr("openai.OpenAI", lambda **kwargs: raw)
+
+        result = orchestrator.process("late provider hair loss")
+
+        assert result.detected_language == "en"
+        assert raw.chat.completions.create.call_args.kwargs["model"] == "late-admin-model"
+
+    def test_admin_slot_reaches_scientific_orchestrator(self, monkeypatch):
+        _save_admin_slot(model="scientific-admin-model")
+        raw = _raw_client([_choice(json.dumps({"lang": "en", "query_en": "hair loss"}))])
+        monkeypatch.setattr("openai.OpenAI", lambda **kwargs: raw)
+
+        from core.orchestrator import QueryOrchestrator
+        QueryOrchestrator._cache.clear()
+        result = QueryOrchestrator().process("hair loss")
+
+        assert result.detected_language == "en"
+        assert raw.chat.completions.create.call_args.kwargs["model"] == "scientific-admin-model"
+
+    def test_admin_slot_reaches_rwe_intent(self, monkeypatch):
+        _save_admin_slot(model="rwe-admin-model")
+        raw = _raw_client([_choice(json.dumps({
+            "interventions": ["dutasteride"],
+            "outcomes": ["hair loss"],
+            "conditions": [],
+            "synonyms": {},
+            "relation_type": "side_effect",
+        }))])
+        monkeypatch.setattr("openai.OpenAI", lambda **kwargs: raw)
+
+        from core.rwe.intent import extract_intent_llm
+        intent = extract_intent_llm("dutasteride hair loss", "dutasteride hair loss")
+
+        assert intent is not None
+        assert intent.interventions == ["dutasteride"]
+        assert raw.chat.completions.create.call_args.kwargs["model"] == "rwe-admin-model"
 
 
 # ── Model resolution ──────────────────────────────────────────────────────────

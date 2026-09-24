@@ -223,10 +223,12 @@ def extract_intent_llm(
         provider = build_provider()
         if provider is None:
             return None
-        attempts.append((provider.client, resolve_model(provider.name, model), provider.name))
+        provider_model = getattr(provider, "model_override", "") or resolve_model(provider.name, model)
+        attempts.append((provider.client, provider_model, provider.name))
         if provider.fallback is not None:
             fb = provider.fallback
-            attempts.append((fb.client, resolve_model(fb.name, model), fb.name))
+            fallback_model = getattr(fb, "model_override", "") or resolve_model(fb.name, model)
+            attempts.append((fb.client, fallback_model, fb.name))
     for raw_client, resolved_model, label in attempts:
         try:
             kwargs: dict = {
