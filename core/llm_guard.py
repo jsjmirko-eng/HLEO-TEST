@@ -433,7 +433,9 @@ def _unwrap_provider(client: Any, model: str):
     if fb is not None:
         fb_name = getattr(fb, "name", "fallback") or "fallback"
         fallback = (fb.client, resolve_model(fb_name, model), fb_name)
-    return (client.client, resolved, provider_name, fallback)
+    return (client.client, resolved, provider_name, fallback,
+            bool(getattr(client, "use_chain", False)))
+
 
 
 def _provider_kwargs(provider_name: str, model: str, messages: list,
@@ -601,7 +603,8 @@ def call_llm(
     # configured (e.g. only env vars are set, no Admin UI slots).
     provider = _unwrap_provider(client, model)
     if provider is not None:
-        chain = _get_chain()
+        raw_client, resolved_model, provider_name, fallback, use_chain = provider
+        chain = _get_chain() if use_chain else []
         if chain:
             return call_llm_chain(
                 chain, messages=messages, model=model,
@@ -609,8 +612,7 @@ def call_llm(
                 response_format=response_format, json_mode=json_mode,
                 operation=operation,
             )
-        # No slots configured → single-provider path (backward compat).
-        raw_client, resolved_model, provider_name, fallback = provider
+        # No opted-in chain configured → single-provider path (backward compat).
         return _run_provider_loop(
             operation=operation, raw_client=raw_client, model=resolved_model,
             provider_name=provider_name, fallback=fallback, messages=messages,
@@ -722,7 +724,8 @@ def call_llm_json(
     # LLMProvider path: prefer multi-slot chain, fall back to single-provider.
     provider = _unwrap_provider(client, model)
     if provider is not None:
-        chain = _get_chain()
+        raw_client, resolved_model, provider_name, fallback, use_chain = provider
+        chain = _get_chain() if use_chain else []
         if chain:
             return call_llm_chain(
                 chain, messages=messages, model=model,
@@ -730,7 +733,6 @@ def call_llm_json(
                 response_format=None, json_mode=True,
                 operation=operation,
             )
-        raw_client, resolved_model, provider_name, fallback = provider
         return _run_provider_loop(
             operation=operation, raw_client=raw_client, model=resolved_model,
             provider_name=provider_name, fallback=fallback, messages=messages,
@@ -977,6 +979,10 @@ def call_llm_chain(
                 )
                 time.sleep(delay)
 
+    if last_kind == "quota_exhausted":
+        raise QuotaExhaustedError(
+            f"OpenAI credit/quota exhausted — API calls disabled. ({last_exc})"
+        ) from last_exc
     raise LLMCallError(
         f"{operation} failed on all {len(stages)} provider(s) "
         f"({total_attempts} total attempts, last kind={last_kind}): {last_exc}"

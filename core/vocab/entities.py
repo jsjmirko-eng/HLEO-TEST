@@ -15,7 +15,9 @@ raise; no providers → no entities → the caller degrades gracefully).
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
 from core.vocab.models import VocabularyResolution
@@ -49,6 +51,76 @@ _GRAMMAR_STOPWORDS = {
 }
 
 
+# Relation phrases are syntax, not biomedical concepts. Keep these separate from
+# provider lookup so a connector can never become a recognised entity.
+_RELATION_CONNECTOR_TRANSLATIONS = {
+    "induced by": "induced by",
+    "induced": "induced",
+    "after taking": "after taking",
+    "after applying": "after applying",
+    "after using": "after using",
+    "after starting": "after starting",
+    "since taking": "since taking",
+    "since starting": "since starting",
+    "caused by": "caused by",
+    "due to": "due to",
+    "indotta da": "induced by",
+    "indotto da": "induced by",
+    "indotte da": "induced by",
+    "indotti da": "induced by",
+    "dopo aver assunto": "after taking",
+    "dopo aver preso": "after taking",
+    "dopo l'assunzione di": "after taking",
+    "dopo aver applicato": "after applying",
+    "dopo l'applicazione di": "after applying",
+    "dopo aver usato": "after using",
+    "dopo l'uso di": "after using",
+    "dopo aver iniziato": "after starting",
+    "dopo l'inizio di": "after starting",
+    "da quando prende": "since taking",
+    "da quando assume": "since taking",
+    "da quando usa": "since using",
+    "da quando ha iniziato": "since starting",
+    "causata da": "caused by",
+    "causato da": "caused by",
+    "causate da": "caused by",
+    "causati da": "caused by",
+    "dovuta a": "due to",
+    "dovuto a": "due to",
+    "dovute a": "due to",
+    "dovuti a": "due to",
+}
+_RELATION_CONNECTOR_PATTERN = re.compile(
+    r"(?<!\w)(?:" + "|".join(
+        re.escape(term) for term in sorted(
+            _RELATION_CONNECTOR_TRANSLATIONS, key=len, reverse=True
+        )
+    ) + r")(?!\w)",
+    flags=re.IGNORECASE,
+)
+
+
+def strip_relation_connectors(text: str) -> str:
+    """Remove relation syntax before sending terms to clinical providers."""
+    return _RELATION_CONNECTOR_PATTERN.sub(" ", text or "")
+
+
+def normalize_relation_connectors(text: str) -> str:
+    """Translate known relation syntax while preserving the surrounding text."""
+    out = text or ""
+    for source, target in sorted(
+        _RELATION_CONNECTOR_TRANSLATIONS.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        out = re.sub(rf"(?<!\w){re.escape(source)}(?!\w)", target, out,
+                     flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", out).strip()
+
+
+def contains_relation_connector(text: str) -> bool:
+    return bool(_RELATION_CONNECTOR_PATTERN.search(text or ""))
+
+
+
 @dataclass
 class EntityRecognition:
     """Result of provider-first entity recognition over one text."""
@@ -67,9 +139,10 @@ def _candidates(text: str, max_n: int = 3) -> List[str]:
     Cyrillic, Arabic): a Japanese query still yields lookup candidates.
     """
     out: List[str] = []
+    searchable_text = strip_relation_connectors(text)
     words = [w.strip(".,;:!?()\"'«»").lower()
-             for w in re.split(r"\s+", (text or "").strip()) if w.strip()]
-    latin = re.findall(r"[a-zà-öø-ÿ0-9]+", (text or "").lower())
+             for w in re.split(r"\s+", searchable_text.strip()) if w.strip()]
+    latin = re.findall(r"[a-zà-öø-ÿ0-9]+", searchable_text.lower())
     for w in words:
         if len(w) >= 3:
             out.append(w)
@@ -86,6 +159,35 @@ def _candidates(text: str, max_n: int = 3) -> List[str]:
         seen.add(c)
         uniq.append(c)
     return uniq
+
+
+def _normalise_surface(value: str) -> str:
+    text = unicodedata.normalize("NFKD", value or "")
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return re.sub(r"\s+", " ", text.lower().strip())
+
+
+def _match_surface_compatible(surface: str, match) -> bool:
+    """Require provider evidence that a non-exact match names this surface."""
+    surface_norm = _normalise_surface(surface)
+    evidence = [match.preferred_term, *(match.synonyms or [])]
+    source_term = (match.metadata or {}).get("source_term")
+    if source_term:
+        evidence.append(source_term)
+    evidence_norm = {_normalise_surface(term) for term in evidence if term}
+    if surface_norm in evidence_norm:
+        return True
+
+    surface_tokens = surface_norm.split()
+    generic_tokens = {"hair", "capelli", "skin", "cutaneous", "clinical"}
+    for term_norm in evidence_norm:
+        term_tokens = set(term_norm.split())
+        if len(surface_tokens) == 1 and SequenceMatcher(
+                None, surface_norm, term_norm).ratio() >= 0.85:
+            return True
+        if set(surface_tokens) & term_tokens - generic_tokens:
+            return True
+    return False
 
 
 def recognize(
@@ -119,6 +221,15 @@ def recognize(
             if etype is None or match.confidence < confidence_floor:
                 continue
             if match.match_kind not in _ENTITY_MATCH_KINDS:
+                continue
+            if (
+                match.match_kind not in {"exact", "translation", "colloquial"}
+                and not (
+                    match.match_kind == "normalized"
+                    and match.provider == "rxnorm"
+                )
+                and not _match_surface_compatible(candidate, match)
+            ):
                 continue
             canonical = (match.preferred_term or "").strip().lower()
             if not canonical:

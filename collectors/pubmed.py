@@ -4,6 +4,9 @@ from typing import Optional
 from core.search_result import SearchResult
 
 
+_BATCH_SIZE = 100
+
+
 def _lim():
     try:
         from core.llm_limits import get_limits
@@ -49,7 +52,7 @@ class PubMedCollector:
             ids.extend(batch)
             total = int(result.get("count", len(ids)) or 0)
             retstart += len(batch)
-            if limit is not None or not batch or len(batch) < page_size:
+            if not batch or len(batch) < page_size or len(ids) >= target:
                 break
 
         if limit is not None:
@@ -59,48 +62,55 @@ class PubMedCollector:
         if not ids:
             return []
 
-        time.sleep(inter_sleep)
+        # 2 — summary (title, authors, journal), in bounded batches
+        details: dict[str, dict] = {}
+        for start in range(0, len(ids), _BATCH_SIZE):
+            batch = ids[start:start + _BATCH_SIZE]
+            try:
+                time.sleep(inter_sleep)
+                response = http_get(
+                    self.SUMMARY_URL,
+                    params={"db": "pubmed", "id": ",".join(batch),
+                            "retmode": "json"},
+                    timeout=timeout,
+                    max_retries=max_retries,
+                    backoff_base_s=backoff_base,
+                    backoff_max_s=backoff_max,
+                )
+                details.update(response.json().get("result", {}))
+            except Exception:
+                continue
 
-        # 2 — summary (title, authors, journal)
-        r2 = http_get(
-            self.SUMMARY_URL,
-            params={"db": "pubmed", "id": ",".join(ids), "retmode": "json"},
-            timeout=timeout,
-            max_retries=max_retries,
-            backoff_base_s=backoff_base,
-            backoff_max_s=backoff_max,
-        )
-        details = r2.json()
-
-        time.sleep(inter_sleep)
-
-        # 3 — fetch abstracts as plain text, one call for all IDs
+        # 3 — fetch abstracts as plain text, in the same bounded batches
         abstract_map: dict[str, str] = {}
-        try:
-            r3 = http_get(
-                self.FETCH_URL,
-                params={
-                    "db": "pubmed",
-                    "id": ",".join(ids),
-                    "rettype": "abstract",
-                    "retmode": "text",
-                },
-                timeout=timeout,
-                max_retries=max_retries,
-                backoff_base_s=backoff_base,
-                backoff_max_s=backoff_max,
-            )
-            if r3.status_code == 200:
-                blocks = r3.text.split("\n\n\n")
-                for i, pmid in enumerate(ids):
-                    if i < len(blocks):
-                        abstract_map[pmid] = blocks[i].strip()
-        except Exception:
-            pass
+        for start in range(0, len(ids), _BATCH_SIZE):
+            batch = ids[start:start + _BATCH_SIZE]
+            try:
+                time.sleep(inter_sleep)
+                response = http_get(
+                    self.FETCH_URL,
+                    params={
+                        "db": "pubmed",
+                        "id": ",".join(batch),
+                        "rettype": "abstract",
+                        "retmode": "text",
+                    },
+                    timeout=timeout,
+                    max_retries=max_retries,
+                    backoff_base_s=backoff_base,
+                    backoff_max_s=backoff_max,
+                )
+                if response.status_code == 200:
+                    blocks = response.text.split("\n\n\n")
+                    for i, pmid in enumerate(batch):
+                        if i < len(blocks):
+                            abstract_map[pmid] = blocks[i].strip()
+            except Exception:
+                continue
 
         results = []
         for pmid in ids:
-            art = details["result"].get(pmid, {})
+            art = details.get(pmid, {})
             results.append(
                 SearchResult(
                     title=art.get("title", ""),

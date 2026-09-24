@@ -28,6 +28,7 @@ class LLMProvider:
     name: str
     client: Any
     fallback: Optional["LLMProvider"] = None
+    use_chain: bool = False
 
 
 def _secret_key() -> str:
@@ -207,7 +208,7 @@ def _build_default_openai(provider_name: str, api_key: str) -> Optional[LLMProvi
     try:
         from openai import OpenAI
         name = (provider_name or "openai").strip() or "openai"
-        return LLMProvider(name=name, client=OpenAI(api_key=api_key))
+        return LLMProvider(name=name, client=OpenAI(api_key=api_key), use_chain=True)
     except Exception as exc:
         logger.warning("LLM provider: OpenAI init failed for %s — %s", provider_name, exc)
         return None
@@ -220,7 +221,7 @@ def _build_generic_openai_compatible(provider_name: str, api_key: str, base_url:
         from openai import OpenAI
         name = (provider_name or "openai-compatible").strip() or "openai-compatible"
         client = OpenAI(api_key=api_key or "generic", base_url=base_url)
-        return LLMProvider(name=name, client=client)
+        return LLMProvider(name=name, client=client, use_chain=True)
     except Exception as exc:
         logger.warning("LLM provider: generic OpenAI-compatible init failed for %s — %s", provider_name, exc)
         return None

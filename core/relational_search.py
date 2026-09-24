@@ -123,13 +123,36 @@ Return ONLY a JSON object (no markdown, no commentary) with this schema:
   "query_original": str,
   "agent": {"term": str, "normalized": str, "role": str, "identified": bool, "search_terms": [str]},
   "event": {"term": str, "normalized": str},
-  "manifestation": {"term": str, "normalized": str, "role": str, "search_terms": [str]},
+  "manifestation": {"term": str, "normalized": str, "role": str, "search_terms": [str],
+                    "site": {"term": str, "normalized": str, "search_terms": [str]}},
   "temporal": str,
   "relation_type": str,
   "scientific_query": str,
   "relation_phrases": [str],
   "fallback_needed": bool
 }
+
+EVENT/MANIFESTATION SEMANTIC RULE (mandatory):
+- event.normalized MUST be the complete clinical event, including any modifier
+  that directly changes the manifestation: increased hair loss, worsening hair
+  loss, aggravated headache, severe skin rash.
+- manifestation.normalized MUST be the underlying clinical condition or event,
+  without its modifier: hair loss, headache, skin rash.
+- manifestation.search_terms MUST contain synonyms of the underlying
+  manifestation, not synonyms of the modifier alone.
+- If the query names an anatomical/site qualifier (for example "attaccatura
+  dei capelli", "hairline", "frontal scalp"), preserve it only as
+  manifestation.site={"term": ..., "normalized": ..., "search_terms": [...]}
+  nested under the same manifestation. The manifestation itself MUST remain
+  the clinical event/condition and MUST NOT be replaced by the site.
+- Omit manifestation.site when the query has no explicit site. Never invent a
+  site from generic words such as "hair" or "capelli".
+- Never split a modifier from the manifestation by putting the modifier alone
+  in manifestation. For the exact query "caduta aumentata da inizio terapia
+  finasteride", the required structure is:
+  event.normalized = "increased hair loss"
+  manifestation.normalized = "hair loss"
+  manifestation.search_terms = ["hair loss", "hair shedding", "alopecia"]
 
 relation_type STRICT ENUM (choose one):
 - adverse_effect   : a DRUG/CHEMICAL/PROCEDURE may CAUSE/TRIGGER the manifestation (harm after/with the agent).
@@ -154,9 +177,18 @@ These are used to match articles by synonym, so include clinically equivalent te
 scientific_query: REQUIRE the agent AND manifestation to co-occur, joined with AND. For
 adverse_effect append a causal group using ONLY: "adverse effect","side effect",induced,
 "caused by","triggered by","secondary to","drug-related","treatment-related",worsening.
-DO NOT use bare "effect" alone, and DO NOT use "following" or "associated with" as mandatory
-terms (they are too generic). For efficacy: (treatment OR efficacy OR therapeutic OR "response to").
-For exposure_outcome: (following OR "due to" OR injury OR caused). English, parentheses + OR groups.
+When the query describes an adverse event followed by recovery, regrowth, or reversibility,
+the scientific_query MUST represent the sequence explicitly as:
+agent AND initial hair shedding AND subsequent hair regrowth
+For the exact query "caduta indotta da dutasteride, poi si recupera?", return exactly:
+"dutasteride AND initial hair shedding AND subsequent hair regrowth"
+Do not replace this sequence with only a generic adverse-effect group. Do not invent additional
+clinical facts beyond the recovery/regrowth expressed by the query. When the query explicitly
+asks whether recovery follows the event, set temporal to "subsequent recovery"; for the exact
+query above, temporal MUST be "subsequent recovery". DO NOT use bare "effect" alone, and DO NOT
+use "following" or "associated with" as mandatory terms (they are too generic).
+For efficacy: (treatment OR efficacy OR therapeutic OR "response to"). For exposure_outcome:
+(following OR "due to" OR injury OR caused). English, parentheses + OR groups.
 
 relation_phrases: 3-6 diverse natural scientific phrases expressing THIS specific relation
 (vary grammar: induced / associated with / following / secondary to / adverse reaction to).
@@ -421,28 +453,75 @@ class RelationalSearch:
                       count=1, flags=re.IGNORECASE)
 
     @staticmethod
-    def _variant_relation(rel: ClinicalRelation, agent: str, manifestation: str) -> ClinicalRelation:
+    def _variant_relation(
+        rel: ClinicalRelation,
+        agent: str,
+        manifestation: str,
+        manifestation_terms: Optional[list[str]] = None,
+    ) -> ClinicalRelation:
         variant = copy.deepcopy(rel)
         variant.agent = dict(variant.agent)
         variant.manifestation = dict(variant.manifestation)
         variant.agent["normalized"] = agent
         variant.agent["search_terms"] = [agent]
         variant.manifestation["normalized"] = manifestation
-        variant.manifestation["search_terms"] = [manifestation]
+        variant.manifestation["search_terms"] = list(
+            manifestation_terms or [manifestation]
+        )
         return variant
+
+    @staticmethod
+    def _vocabulary_variant_allowed(
+        source_entity: str,
+        candidate: str,
+        match,
+        relation: ClinicalRelation,
+        side: str,
+    ) -> bool:
+        """Keep provider variants compatible with the extracted relation side."""
+        source_tokens = set(re.findall(r"[\w']+", source_entity.lower()))
+        candidate_tokens = set(re.findall(r"[\w']+", candidate.lower()))
+        if not source_tokens or not candidate_tokens:
+            return False
+        expected_role = (
+            (relation.agent or {}).get("role") if side == "agent"
+            else (relation.manifestation or {}).get("role")
+        )
+        expected_groups = {
+            "drug": {"drug"},
+            "condition": {"condition", "symptom"},
+            "symptom": {"condition", "symptom"},
+            "adverse_effect": {"condition", "symptom"},
+            "outcome": {"condition", "symptom"},
+        }.get(expected_role)
+        if expected_groups is not None and match.semantic_group not in expected_groups:
+            return False
+
+        # Exact and explicit alias matches may replace the surface. Related
+        # concepts must retain the lexical anchor to avoid semantic drift.
+        alias_kinds = {"exact", "synonym", "translation", "normalized", "colloquial"}
+        if match.match_kind not in alias_kinds and not source_tokens.issubset(candidate_tokens):
+            return False
+        return True
 
     def _expand_relation(self, rel: ClinicalRelation, original_query: str):
         """Resolve typed vocabulary and generate anchored search queries."""
         agent = (rel.agent.get("normalized") or rel.agent.get("term") or "").strip()
         manifestation = (rel.manifestation.get("normalized") or rel.manifestation.get("term") or "").strip()
+        manifestation_terms = list(dict.fromkeys(
+            str(term).strip()
+            for term in (rel.manifestation.get("search_terms") or [manifestation])
+            if str(term).strip()
+        ))
         base = rel.scientific_query or " ".join(x for x in (agent, manifestation) if x)
         rel.canonical_query = base
-        terms = [x for x in (agent, manifestation) if len(x) >= 3]
         resolutions = {}
         from core.vocab.resolver import build_resolver_from_env
         resolver = build_resolver_from_env()
         if resolver is not None:
-            resolutions = resolver.resolve_terms(list(dict.fromkeys(terms)), language="en")
+            resolutions = resolver.resolve_terms(list(dict.fromkeys(
+                x for x in (agent, manifestation) if len(x) >= 3
+            )), language="en")
             rel.vocabulary = {
                 term: [m.model_dump() for m in result.matches]
                 for term, result in resolutions.items() if result.matches
@@ -481,6 +560,10 @@ class RelationalSearch:
                     term = (term or "").strip()
                     if len(term) < 3 or term.lower() == source_entity.lower():
                         continue
+                    if not self._vocabulary_variant_allowed(
+                        source_entity, term, match, rel, side
+                    ):
+                        continue
                     a, m = agent, manifestation
                     if side == "agent":
                         a = term
@@ -502,7 +585,16 @@ class RelationalSearch:
             if not key[0] and not key[1] or key in seen:
                 continue
             seen.add(key)
-            variant = self._variant_relation(rel, a, m)
+            variant = self._variant_relation(
+                rel, a, m, manifestation_terms=manifestation_terms
+            )
+            variant_query = rel.scientific_query
+            if a != agent and agent:
+                variant_query = variant_query.replace(agent, a, 1)
+            elif m != manifestation and m:
+                variant_query = f"{variant_query} AND {m}"
+            variant.scientific_query = variant_query
+            variant.canonical_query = variant_query
             provenance = dict(provenance)
             provenance["query"] = self._build_pubmed_query(variant)
             provenance["source_language"] = "en"
@@ -679,41 +771,19 @@ class RelationalSearch:
         "prevention": '(prevention OR preventive OR prophylaxis)',
     }
 
+    @staticmethod
+    def _temporal_query_term(rel: ClinicalRelation) -> str:
+        temporal = " ".join(str(rel.temporal or "").split())
+        return f'"{temporal}"' if temporal else ""
+
     def _build_pubmed_query(self, rel: ClinicalRelation) -> str:
-        ag = self._or_group(rel.agent.get("search_terms") or [rel.agent.get("normalized", "")])
-        mn = self._or_group(rel.manifestation.get("search_terms") or [rel.manifestation.get("normalized", "")])
-        causal = self._CAUSAL.get(rel.relation_type, "")
-        # [tiab] restricts to title/abstract; hasabstract ensures an abstract exists.
-        parts = []
-        if ag:
-            parts.append(f"{ag}[tiab]")
-        if mn:
-            parts.append(f"{mn}[tiab]")
-        if causal:
-            parts.append(causal)
-        parts.append("hasabstract")
-        return " AND ".join(parts)
+        return rel.scientific_query
 
     def _build_epmc_query(self, rel: ClinicalRelation) -> str:
-        ag = self._or_group(rel.agent.get("search_terms") or [rel.agent.get("normalized", "")])
-        mn = self._or_group(rel.manifestation.get("search_terms") or [rel.manifestation.get("normalized", "")])
-        causal = self._CAUSAL.get(rel.relation_type, "")
-        # Force the agent into TITLE or ABSTRACT (measured ~100% agent presence),
-        # require manifestation, optional causal group.
-        parts = []
-        if ag:
-            parts.append(f"(TITLE:{ag} OR ABSTRACT:{ag})")
-        if mn:
-            parts.append(mn)
-        if causal:
-            parts.append(causal)
-        return " AND ".join(parts)
+        return rel.scientific_query
 
     def _build_ct_query(self, rel: ClinicalRelation) -> str:
-        # ClinicalTrials v2 query.term is free-text; use agent + manifestation.
-        ag = rel.agent.get("normalized", "")
-        mn = rel.manifestation.get("normalized", "")
-        return f"{ag} {mn}".strip() or rel.original_query
+        return rel.scientific_query
 
     # ── (4) Hard filter (synonym-tolerant) ────────────────────────────────────
 

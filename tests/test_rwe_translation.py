@@ -115,6 +115,22 @@ def test_deterministic_fallback_from_entities(monkeypatch):
     assert res.english_query == "isotretinoin joint pain stiffness"
 
 
+def test_deterministic_fallback_preserves_relation(monkeypatch):
+    class _Rec:
+        entities = [("symptom", "hair loss", 0.9),
+                    ("drug", "dutasteride", 0.9)]
+        surfaces = {"hair loss": "caduta", "dutasteride": "dutasteride"}
+
+    monkeypatch.setattr("core.vocab.entities.recognize",
+                        lambda *a, **k: _Rec())
+    monkeypatch.setattr("core.vocab.resolver.build_resolver_from_env",
+                        lambda: object())
+
+    from core.rwe.translation import _deterministic_fallback
+    assert _deterministic_fallback("caduta indotta da dutasteride", "it") \
+        == "hair loss induced by dutasteride"
+
+
 def test_total_failure_returns_original_marked_none(monkeypatch):
     client = _FakeClient([RuntimeError("x")] * 10)
     monkeypatch.setattr("core.vocab.resolver.build_resolver_from_env",
