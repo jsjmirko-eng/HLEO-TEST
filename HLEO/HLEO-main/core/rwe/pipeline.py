@@ -24,7 +24,7 @@ from core.orchestrator import QueryOrchestrator  # noqa: F401  (patched by tests
 from core.rwe.intent import GENERIC_EVENT_TERMS, merged_sides
 from core.rwe.models import RWEItem, RWESearchResult
 from core.rwe.query_engine import RWEQueryEngine
-from core.rwe.relation_filter import apply_relation_gate
+from core.rwe.relation_filter import apply_relation_gate, experience_relation_match
 
 logger = logging.getLogger(__name__)
 
@@ -468,6 +468,8 @@ def _score_item_v3(
     event_score, event_hits = _v3_event_score(
         body, condition_lower, event_side, is_authoritative_match, tiers,
         generic_vocab=sides.get("generic_vocab"))
+    experience_match, experience_signal = experience_relation_match(
+        body, treatment_lower, condition_lower, anchor_hits, intent)
 
     # ── modality-aware RWE bonus: direct testimonies and relation cues ──────
     relation_bonus = 0.0
@@ -487,9 +489,14 @@ def _score_item_v3(
     # ── combine ──────────────────────────────────────────────────────────────
     if anchor_side and event_side:
         if event_score == 0.0:
-            base = 0.15 * anchor_score + 0.05 * token_score
-            reason = (f"v3 anchor_match_only (anchor={anchor_hits[:2]}; "
-                      f"event_missing)")
+            if experience_match:
+                base = 0.45 * anchor_score + 0.05 * token_score
+                reason = (f"v3 experience_context (anchor={anchor_hits[:2]}; "
+                          f"signal={experience_signal})")
+            else:
+                base = 0.15 * anchor_score + 0.05 * token_score
+                reason = (f"v3 anchor_match_only (anchor={anchor_hits[:2]}; "
+                          f"event_missing)")
         elif anchor_score == 0.0:
             base = 0.15 * event_score + 0.05 * token_score
             reason = (f"v3 event_match_only (event={event_hits[:3]}; "
@@ -532,10 +539,12 @@ def relevance_filter(
     Semi-semantic relevance filter — respects the FULL intent of the query.
 
     Splits the query into a DRUG/exposure side and an EVENT/symptom side, and
-    requires BOTH for a high score. A record that merely references the queried
-    drug but expresses an unrelated event (e.g. dutasteride + loss of
-    proprioception for a "dutasteride induced hair shedding" query) scores LOW
-    and is filtered out.
+    requires BOTH for a high score. A directly linked RWE experience may pass
+    without an explicit positive event term when the agent is tied to the
+    intent's site or to duration/uncertainty context. A record that merely
+    references the queried drug but expresses an unrelated event (e.g.
+    dutasteride + loss of proprioception for a "dutasteride induced hair
+    shedding" query) still scores LOW and is filtered out.
 
     Authoritative sources (openFDA): the drug match is trusted server-side,
     but the event is STILL verified against the record's reaction text —
@@ -655,7 +664,7 @@ class RWEPipeline:
     """
 
     def __init__(self) -> None:
-        from core.rwe.reddit_adapter import RedditRWEAdapter
+        from core.rwe.reddit_rss_adapter import RedditRWEAdapter
         from core.rwe.openfda_collector import OpenFDACollector
         from core.rwe.calvizie_collector import CalvizieCollector
         from core.rwe.hairlosstalk_collector import HairLossTalkCollector
