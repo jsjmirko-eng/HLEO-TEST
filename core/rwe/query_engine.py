@@ -290,7 +290,7 @@ class RWEQueryEngine:
             resolutions = rec.resolutions
             surfaces = rec.surfaces
             entities, resolutions, surfaces = self._sanitize_entities(
-                entities, resolutions, surfaces)
+                entities, resolutions, surfaces, translated)
 
         # ── 3. Canonicalisation (provider preferred terms; translation intact)
         canonical = self._canonicalize(translated, entities, surfaces)
@@ -341,10 +341,61 @@ class RWEQueryEngine:
     # ── Entity sanitisation (RWE precision guard) ────────────────────────────
 
     @staticmethod
+    def _provider_identity_is_plausible(
+        canonical: str,
+        surface: str,
+        resolution,
+    ) -> bool:
+        """Keep provider identities that are plausible for their surface.
+
+        Providers often return a high-confidence normalized hit for a generic
+        n-gram such as ``fall induced``.  The hit may be a completely
+        unrelated multi-word concept that merely shares one token.  Identity
+        match kinds may bridge a genuine lexical gap (``hair loss`` →
+        ``alopecia``), but weak matches must still have substantial lexical
+        overlap with the surface.
+        """
+        identity_kinds = {
+            "exact", "canonical", "preferred", "synonym", "translation",
+            "abbreviation", "orthographic_variant", "colloquial", "normalized",
+        }
+        matches = getattr(resolution, "matches", []) if resolution else []
+        if any(getattr(match, "match_kind", "") == "translation"
+               for match in matches):
+            return True
+        if not any(getattr(match, "match_kind", "") in identity_kinds
+                   for match in matches):
+            return False
+
+        surface_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())
+        canonical_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
+        if not surface_tokens or not canonical_tokens:
+            return False
+        if " ".join(surface_tokens) == " ".join(canonical_tokens):
+            return True
+
+        def lexical_match(left: str, right: str) -> bool:
+            return left == right or (
+                len(left) >= 4 and len(right) >= 4
+                and (left.startswith(right) or right.startswith(left))
+            )
+
+        overlap = sum(
+            any(lexical_match(token, candidate) for candidate in surface_tokens)
+            for token in canonical_tokens
+        )
+        # A one-token canonical can be a genuine provider lexical gap such as
+        # ``hair loss`` → ``alopecia``; multi-word unrelated concepts cannot.
+        if len(canonical_tokens) == 1 and overlap == 0:
+            return True
+        return overlap / max(len(canonical_tokens), len(surface_tokens)) >= 0.5
+
+    @staticmethod
     def _sanitize_entities(
         entities: list,
         resolutions: dict,
         surfaces: dict,
+        query_text: str = "",
     ):
         """Drop provider homonymy artefacts from the recognised entities.
 
@@ -381,17 +432,53 @@ class RWEQueryEngine:
                 continue
             if len(canon_tokens) > 6 and not set(surf_tokens).intersection(canon_tokens):
                 continue
+            if not RWEQueryEngine._provider_identity_is_plausible(
+                canonical, surface, (resolutions or {}).get(canonical)
+            ):
+                continue
             keep_canonicals.add(canonical)
             kept.append((etype, canonical, conf))
+        # Preserve a surface when the provider only changes inflection (for
+        # example, ``fall`` → ``falls``); otherwise entity combos can re-add
+        # the provider's generic label after canonicalization preserved it.
+        normalized_kept = []
+        for etype, canonical, conf in kept:
+            surface = str((surfaces or {}).get(canonical, canonical) or "").strip()
+            surface_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())
+            canonical_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
+            if (len(surface_tokens) == len(canonical_tokens) == 1
+                    and surface_tokens[0].rstrip("s")
+                    == canonical_tokens[0].rstrip("s")):
+                resolution = (resolutions or {}).get(canonical)
+                if resolution is not None and resolutions is not None:
+                    resolutions[surface] = resolution
+                if surfaces is not None:
+                    surfaces[surface] = surface
+                canonical = surface
+            normalized_kept.append((etype, canonical, conf))
+        kept = normalized_kept
+
         # Same query surface resolved to several provider concepts (e.g. MeSH
         # "Sexual Dysfunction, Physiological" + "Sexual Dysfunctions,
         # Psychological" for "sexual dysfunction"): keep the most confident
         # one, so canonicalisation/expansion apply one concept per phrase.
         by_surface: dict = {}
-        for etype, canonical, conf in kept:
-            surface = ((surfaces or {}).get(canonical, canonical)).lower()
-            if surface not in by_surface or conf > by_surface[surface][2]:
-                by_surface[surface] = (etype, canonical, conf)
+        query_lower = (query_text or "").lower()
+        grouped: dict[str, list] = {}
+        for item in kept:
+            surface = ((surfaces or {}).get(item[1], item[1])).lower()
+            grouped.setdefault(surface, []).append(item)
+        for surface, candidates in grouped.items():
+            query_exact = [item for item in candidates if re.search(
+                rf"(?<!\w){re.escape(item[1].lower())}(?!\w)", query_lower)]
+            candidates = query_exact or candidates
+            by_surface[surface] = max(
+                candidates,
+                key=lambda item: (
+                    item[1].lower() == surface,
+                    item[2],
+                ),
+            )
         kept = list(by_surface.values())
         keep_canonicals = {c for _t, c, _cf in kept}
         resolutions = {c: r for c, r in (resolutions or {}).items()
@@ -402,16 +489,23 @@ class RWEQueryEngine:
 
     @staticmethod
     def _canonicalize(translated: str, entities: list, surfaces: dict) -> str:
-        """Replace provider-verified surface forms with their canonical
-        preferred term (e.g. "propecia" → "finasteride"). The translated
-        representation itself is never mutated."""
+        """Replace provider-verified aliases without changing query meaning."""
         out = translated
         for _etype, canonical, _conf in entities or []:
             surface = (surfaces or {}).get(canonical, canonical)
             for term in {surface, canonical}:
-                if term and term.lower() != canonical.lower():
-                    out = re.sub(rf"(?<!\w){re.escape(term)}(?!\w)", canonical,
-                                 out, flags=re.IGNORECASE)
+                if not term or term.lower() == canonical.lower():
+                    continue
+                # A provider's inflection-only label is not a canonical
+                # improvement: preserve the user's translated wording.
+                term_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", term.lower())
+                canonical_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
+                if (len(term_tokens) == len(canonical_tokens) == 1
+                        and (term_tokens[0].rstrip("s")
+                             == canonical_tokens[0].rstrip("s"))):
+                    continue
+                out = re.sub(rf"(?<!\w){re.escape(term)}(?!\w)", canonical,
+                             out, flags=re.IGNORECASE)
         return re.sub(r"\s+", " ", out).strip()
 
     @staticmethod
@@ -695,7 +789,7 @@ class RWEQueryEngine:
         if not toks_clean:
             return False
         overlap = sum(1 for t in toks_clean if t == anchor)
-        if overlap / max(1, len(toks_clean)) < 0.5:
+        if overlap / max(1, len(toks_clean)) < 0.75:
             return False
         # If query looks causal/adverse and entity is condition/symptom, require event terms
         q = (base_query or "").lower()

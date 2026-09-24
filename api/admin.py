@@ -74,14 +74,13 @@ _RUNTIME_SOURCES = [
         "description": "ClinicalTrials.gov v2 API — registered trials.",
     },
     {
-        "source_id": "reddit", "name": "Reddit (PRAW)", "runtime_collector": "reddit",
+        "source_id": "reddit", "name": "Reddit RSS", "runtime_collector": "reddit",
         "category": "rwe_experience", "evidence_level": "anecdotal",
-        "integration_type": "api", "source_type": "rest_api",
+        "integration_type": "rss", "source_type": "rss",
         "data_category": "discussion_posts",
-        "requires_credentials": True,
-        "credentials_env_vars": ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"],
+        "requires_credentials": False, "credentials_env_vars": [],
         "geographic_scope": "global", "language_codes": ["en"],
-        "description": "Reddit via PRAW OAuth2 — community discussions.",
+        "description": "Reddit public RSS search feed — read-only community discussions.",
     },
     {
         "source_id": "openfda_faers", "name": "openFDA FAERS",

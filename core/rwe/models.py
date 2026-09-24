@@ -19,9 +19,9 @@ from pydantic import BaseModel, Field
 RWE_SOURCES = {
     "reddit": {
         "source_type": "community_forum",
-        "collection_method": "official_api_oauth2",
+        "collection_method": "official_rss_feed",
         "evidence_tier": "anecdotal",
-        "language": "multi",
+        "language": "en",
     },
     "openfda_faers": {
         "source_type": "pharmacovigilance",
