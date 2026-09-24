@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from core.orchestrator import QueryOrchestrator
-from core.rwe.intent import build_intent, intent_scoring_enabled
+from core.rwe.intent import build_intent, intent_from_relation, intent_scoring_enabled
 from core.vocab.entities import merge_recognitions, recognize
 from core.vocab.resolver import build_resolver_from_env
 
@@ -102,6 +102,7 @@ class RWEQueryPlan:
     expanded_queries: List[ExpandedQuery] = field(default_factory=list)
     # QU-aware relevance (V3): structured intent; None = pure V1 behaviour.
     intent: Optional[object] = None                   # RWEQueryIntent | None
+    clinical_relation: Optional[object] = None        # shared ClinicalRelation
 
     def query_strings(self) -> List[str]:
         """Flat list of query strings (deduplicated, order preserved)."""
@@ -143,6 +144,12 @@ class RWEQueryPlan:
             "intent": (
                 self.intent.model_dump()
                 if self.intent is not None and hasattr(self.intent, "model_dump")
+                else None
+            ),
+            "clinical_relation": (
+                self.clinical_relation.to_dict()
+                if self.clinical_relation is not None
+                and hasattr(self.clinical_relation, "to_dict")
                 else None
             ),
         }
@@ -226,6 +233,106 @@ class RWEQueryEngine:
     def __init__(self, orchestrator: Optional[QueryOrchestrator] = None) -> None:
         self._orchestrator = orchestrator or QueryOrchestrator()
 
+
+    @staticmethod
+    def _relation_is_valid(relation) -> bool:
+        """Accept only a structurally meaningful shared clinical relation."""
+        if relation is None:
+            return False
+        agent = relation.agent or {}
+        event = relation.event or {}
+        manifestation = relation.manifestation or {}
+        relation_type = (relation.relation_type or "").strip().lower()
+        return bool(
+            agent.get("identified") is True
+            and (agent.get("normalized") or "").strip()
+            and ((event.get("normalized") or "").strip()
+                 or (manifestation.get("normalized") or "").strip())
+            and relation_type
+            and relation_type != "unknown"
+        )
+
+    @staticmethod
+    def _scientific_relation(query: str):
+        """Return a structured Scientific Chain relation when available."""
+        try:
+            from core.relational_search import RelationalSearch
+            return RelationalSearch()._extract_relation(query)
+        except Exception as exc:  # noqa: BLE001 — RWE must degrade gracefully
+            logger.info("Scientific relation reuse unavailable: %s", exc)
+            return None
+
+
+    @staticmethod
+    def _site_terms(relation) -> list[str]:
+        """Return only site terms nested under the relation manifestation."""
+        site = (relation.manifestation or {}).get("site") or {}
+        return list(dict.fromkeys(
+            str(term).strip()
+            for term in [site.get("normalized"), *(site.get("search_terms") or [])]
+            if str(term or "").strip()
+        ))
+
+    @classmethod
+    def _relation_context(cls, relation) -> str:
+        """Build RWE context from relation fields, including optional manifestation site."""
+        fields = (relation.agent, relation.event, relation.manifestation)
+        terms = []
+        for field in fields:
+            field = field or {}
+            term = field.get("normalized") or field.get("term")
+            if term:
+                terms.append(str(term).strip())
+        terms.extend(cls._site_terms(relation)[:1])
+        if relation.temporal:
+            terms.append(str(relation.temporal).strip())
+        return " ".join(dict.fromkeys(term for term in terms if term))
+
+    @staticmethod
+    def _relation_terms(relation) -> list[str]:
+        """Return semantic field terms for provider lookup, not raw query n-grams."""
+        terms = []
+        for field in (relation.agent, relation.event, relation.manifestation):
+            field = field or {}
+            terms.extend([
+                field.get("normalized"),
+                field.get("term"),
+                *(field.get("search_terms") or []),
+            ])
+        if relation.temporal:
+            terms.append(relation.temporal)
+        return list(dict.fromkeys(
+            str(term).strip() for term in terms if str(term or "").strip()
+        ))
+
+    @classmethod
+    def _relation_entities(cls, relation, recognition):
+        """Keep provider matches attached to ClinicalRelation field surfaces."""
+        allowed = {term.lower() for term in cls._relation_terms(relation)}
+        entities = []
+        resolutions = {}
+        surfaces = {}
+        for etype, canonical, confidence in recognition.entities:
+            surface = (recognition.surfaces or {}).get(canonical, canonical)
+            if surface.lower() not in allowed and canonical.lower() not in allowed:
+                continue
+            entities.append((etype, canonical, confidence))
+            if canonical in recognition.resolutions:
+                resolutions[canonical] = recognition.resolutions[canonical]
+            surfaces[canonical] = surface
+
+        semantic_fields = (
+            ("drug", relation.agent),
+            ("symptom", relation.event),
+            ("condition", relation.manifestation),
+        )
+        for etype, field in semantic_fields:
+            field = field or {}
+            canonical = (field.get("normalized") or field.get("term") or "").strip().lower()
+            if canonical and not any(c == canonical for _t, c, _cf in entities):
+                entities.append((etype, canonical, 1.0))
+        return entities, resolutions, surfaces
+
     # ── Public API ───────────────────────────────────────────────────────────
 
     def plan(self, query: str) -> RWEQueryPlan:
@@ -254,6 +361,19 @@ class RWEQueryEngine:
         )
         translation_method = "orchestrator" if translation_applied else ""
 
+        # Reuse the Scientific Chain relation when it recognizes a structured
+        # drug→outcome query. This keeps RWE semantics contextual instead of
+        # canonicalizing isolated colloquial tokens independently.
+        relation_candidate = self._scientific_relation(q)
+        scientific_relation = (
+            relation_candidate
+            if self._relation_is_valid(relation_candidate) else None
+        )
+        if scientific_relation is not None:
+            translated = self._relation_context(scientific_relation)
+            translation_applied = translated.lower() != q.lower()
+            translation_method = "clinical_relation"
+
         # ── 1b. Robust RWE translation fallback (plain-text, JSON-free) ──────
         # The orchestrator's single JSON-mode call can fail on some LLM
         # providers (observed: Groq gpt-oss-120b json_validate_failed x5),
@@ -280,20 +400,29 @@ class RWEQueryEngine:
         resolutions: dict = {}
         surfaces: dict = {}
         if resolver is not None:
-            rec_en = recognize(translated, "en", resolver)
-            if lang not in {"und", "en"} and translated.lower() != q.lower():
-                rec_src = recognize(q, lang, resolver)
-                rec = merge_recognitions(rec_en, rec_src)
+            if scientific_relation is not None:
+                relation_terms = self._relation_terms(scientific_relation)
+                rec = recognize(" ".join(relation_terms), "en", resolver)
+                entities, resolutions, surfaces = self._relation_entities(
+                    scientific_relation, rec
+                )
             else:
-                rec = rec_en
-            entities = rec.entities
-            resolutions = rec.resolutions
-            surfaces = rec.surfaces
+                rec_en = recognize(translated, "en", resolver)
+                if lang not in {"und", "en"} and translated.lower() != q.lower():
+                    rec_src = recognize(q, lang, resolver)
+                    rec = merge_recognitions(rec_en, rec_src)
+                else:
+                    rec = rec_en
+                entities = rec.entities
+                resolutions = rec.resolutions
+                surfaces = rec.surfaces
             entities, resolutions, surfaces = self._sanitize_entities(
                 entities, resolutions, surfaces)
 
         # ── 3. Canonicalisation (provider preferred terms; translation intact)
         canonical = self._canonicalize(translated, entities, surfaces)
+        if scientific_relation is not None:
+            canonical = self._relation_context(scientific_relation)
 
         # ── 4. QU intent (built BEFORE expansion so intent-driven combos can
         # join the expanded set) ─────────────────────────────────────────────
@@ -304,7 +433,11 @@ class RWEQueryEngine:
         # without a recognised relation keep intent=None → exact V1 behaviour.
         vocabulary = self._slim_vocabulary(resolutions)
         intent = None
-        if intent_scoring_enabled():
+        if scientific_relation is not None:
+            intent = intent_from_relation(scientific_relation, translated, q)
+            if vocabulary:
+                intent.vocabulary = vocabulary
+        elif intent_scoring_enabled():
             intent = build_intent(translated, q, entities, use_llm=True)
             if vocabulary:
                 intent.vocabulary = vocabulary
@@ -322,6 +455,7 @@ class RWEQueryEngine:
             entities=entities,
             resolutions=resolutions,
             intent=intent,
+            clinical_relation=scientific_relation,
         )
 
         return RWEQueryPlan(
@@ -336,6 +470,7 @@ class RWEQueryEngine:
             translation_method=translation_method,
             expanded_queries=expanded,
             intent=intent,
+            clinical_relation=scientific_relation,
         )
 
     # ── Entity sanitisation (RWE precision guard) ────────────────────────────
@@ -446,6 +581,7 @@ class RWEQueryEngine:
         entities: list,
         resolutions: Optional[dict] = None,
         intent=None,
+        clinical_relation=None,
     ) -> List[ExpandedQuery]:
         """
         Build the controlled set of expanded queries.
@@ -488,6 +624,30 @@ class RWEQueryEngine:
                 expanded_term=canonical_query,
                 query_origin="canonicalization",
             ))
+
+        # Keep an optional manifestation site attached to the same outcome.
+        # Site terms never enter the provider entity side-set or replace the outcome.
+        if clinical_relation is not None:
+            manifestation = clinical_relation.manifestation or {}
+            agent = (clinical_relation.agent or {}).get("normalized", "").strip()
+            outcome_terms = list(dict.fromkeys(
+                str(term).strip()
+                for term in [manifestation.get("normalized"), *(manifestation.get("search_terms") or [])]
+                if str(term or "").strip()
+            ))
+            site_terms = self._site_terms(clinical_relation)
+            for outcome in outcome_terms:
+                for site in site_terms:
+                    queries.append(ExpandedQuery(
+                        query=f"{agent} {outcome} {site}".strip(),
+                        expansion_type=EXP_COMBO,
+                        source_language="en",
+                        matched_entities=[term for term in (agent, outcome, site) if term],
+                        original_term=manifestation.get("term", ""),
+                        expanded_term=f"{outcome} + {site}",
+                        source_entity="manifestation.site",
+                        query_origin="clinical_relation",
+                    ))
 
         if not entities:
             return self._dedup_and_cap(queries, canonical_names)
