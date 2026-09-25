@@ -123,6 +123,40 @@ def _occurrences(body: str, term: str) -> List[int]:
         rf"(?<!\w){re.escape(term)}(?!\w)", body)]
 
 
+def experience_relation_match(
+    body: str,
+    treatment: str,
+    condition: str,
+    agent_hits: List[str],
+    intent=None,
+) -> Tuple[bool, str]:
+    """Recognize an exposure-linked experience without requiring outcome polarity."""
+    if not agent_hits:
+        return False, ""
+    content = f"{body or ''}\n{treatment or ''}\n{condition or ''}".lower()
+    manifestation = getattr(intent, "manifestation", None) or {}
+    site = manifestation.get("site") or {}
+    site_terms = [site.get("term"), site.get("normalized"),
+                  *(site.get("search_terms") or [])]
+    site_hits = [str(term).lower().strip() for term in site_terms if term and
+                 _occurrences(content, str(term).lower().strip())]
+    duration = _ONSET_RE.search(content) or _DURATION_RE.search(content)
+    agent_positions = [pos for term in agent_hits
+                       for pos in _occurrences(content, term)]
+    if site_hits:
+        site_positions = [pos for term in site_hits
+                          for pos in _occurrences(content, term)]
+        if any(abs(agent_pos - site_pos) <= _RELATION_WINDOW
+               for agent_pos in agent_positions
+               for site_pos in site_positions):
+            return True, site_hits[0]
+    if duration and any(abs(agent_pos - duration.start()) <= _RELATION_WINDOW
+                        for agent_pos in agent_positions):
+        return True, duration.group(0).strip()
+    return False, ""
+
+
+
 def _sentences(body: str) -> List[str]:
     return [s.strip() for s in _SENTENCE_SPLIT.split(body or "") if s.strip()]
 
@@ -469,6 +503,9 @@ def apply_relation_gate(
         manifestation_hits = sorted({
             t for t in ctx.manifestation_terms
             if _occurrences(body, t) or _occurrences(condition, t)})
+        experience_match, experience_signal = experience_relation_match(
+            body, treatment, condition, agent_hits, getattr(plan, "intent", None))
+        contextual_manifestation = False
         manifestation_sentences: List[str] = []
         if not manifestation_hits and len(ctx.manifestation_tokens) >= 2:
             # Phrase-tokens co-present in ONE sentence (not isolated words).
@@ -478,6 +515,9 @@ def apply_relation_gate(
             if manifestation_sentences:
                 manifestation_hits = [
                     " ".join(sorted(ctx.manifestation_tokens)) + " (sentence)"]
+        if not manifestation_hits and experience_match:
+            manifestation_hits = [f"experience_context ({experience_signal})"]
+            contextual_manifestation = True
         if not manifestation_hits:
             stats["dropped_manifestation"] += 1
             it.metadata["relation_gate"] = {
@@ -494,6 +534,9 @@ def apply_relation_gate(
             # ARE the link.
             verified = True
             kind, dist = "structured_record", None
+        elif contextual_manifestation:
+            verified = True
+            kind, dist = "experience_context", None
         else:
             verified, kind, dist = _level_c_relation(
                 body, title, agent_hits,

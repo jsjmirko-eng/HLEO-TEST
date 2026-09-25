@@ -366,3 +366,67 @@ def test_rwe_plan_preserves_original_and_canonical():
     assert plan.canonical_query
     exp_queries = [e.query for e in plan.expanded_queries]
     assert "finasteride shedding" in exp_queries
+
+
+def test_manifestation_site_is_preserved_and_used_in_expansion():
+    query = "Ho recuperato l'attaccatura dei capelli con dutasteride?"
+    relation_data = {
+        "query_original": query,
+        "agent": {
+            "term": "dutasteride", "normalized": "dutasteride",
+            "role": "drug", "identified": True,
+            "search_terms": ["dutasteride", "Avodart"],
+        },
+        "event": {"term": "recupero", "normalized": "regrowth"},
+        "manifestation": {
+            "term": "attaccatura dei capelli", "normalized": "hair regrowth",
+            "role": "outcome",
+            "search_terms": ["hair regrowth", "hair restoration", "hair recovery"],
+            "site": {
+                "term": "attaccatura dei capelli", "normalized": "hairline",
+                "search_terms": ["hairline", "frontal hairline", "attaccatura dei capelli"],
+            },
+        },
+        "relation_type": "efficacy",
+        "scientific_query": "dutasteride AND hair regrowth",
+        "relation_phrases": ["effective for hair regrowth"],
+        "fallback_needed": False,
+    }
+    rs = RelationalSearch.__new__(RelationalSearch)
+    rs._rel_cache = {}
+    with patch.object(rs, "_llm_json", return_value=relation_data), \
+            patch("core.vocab.resolver.build_resolver_from_env", return_value=None):
+        relation = rs._extract_relation(query)
+        expanded = rs._expand_relation(relation, query)
+
+    assert relation.manifestation["normalized"] == "hair regrowth"
+    assert relation.manifestation["site"]["normalized"] == "hairline"
+    assert {"hairline", "frontal hairline", "attaccatura dei capelli"} <= set(
+        relation.manifestation["site"]["search_terms"]
+    )
+    assert "hairline" in rs._build_pubmed_query(relation)
+    assert any(
+        variant.manifestation["site"]["normalized"] == "hairline"
+        for variant, _provenance in expanded
+    )
+
+
+def test_manifestation_site_is_optional_and_not_invented():
+    relation = ClinicalRelation(
+        original_query="Ho recuperato i capelli con dutasteride?",
+        agent={"term": "dutasteride", "normalized": "dutasteride", "identified": True},
+        event={"term": "recupero", "normalized": "regrowth"},
+        manifestation={
+            "term": "capelli", "normalized": "hair regrowth", "role": "outcome",
+            "search_terms": ["hair regrowth", "hair restoration"],
+        },
+        relation_type="efficacy",
+        scientific_query="dutasteride AND hair regrowth",
+    )
+    rs = RelationalSearch.__new__(RelationalSearch)
+    with patch("core.vocab.resolver.build_resolver_from_env", return_value=None):
+        expanded = rs._expand_relation(relation, relation.original_query)
+
+    assert "site" not in relation.manifestation
+    assert "hairline" not in rs._build_pubmed_query(relation).lower()
+    assert all("hairline" not in variant.manifestation for variant, _ in expanded)

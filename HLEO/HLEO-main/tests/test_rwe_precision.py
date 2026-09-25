@@ -9,6 +9,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from core.rwe.models import RWEItem
+from core.rwe.pipeline import relevance_filter
 from core.rwe.query_engine import RWEQueryEngine
 from core.rwe.relation_filter import (
     apply_relation_gate,
@@ -124,6 +125,84 @@ def test_context_none_without_structured_relation():
     items = [_item("t", "x")]
     out, stats = apply_relation_gate(items, plan)
     assert out is items and stats is None
+
+
+def test_context_uses_intent_condition_as_manifestation_surface():
+    plan = SimpleNamespace(
+        entities=[("drug", "dutasteride", 1.0)],
+        vocabulary={},
+        surfaces={},
+        intent=SimpleNamespace(
+            interventions=["dutasteride"],
+            outcomes=["regrowth"],
+            conditions=["hair regrowth"],
+            synonyms={"regrowth": ["recupero"]},
+        ),
+    )
+    ctx = build_relation_context(plan)
+    assert ctx is not None
+    assert "regrowth" in ctx.manifestation_terms
+    assert "hair regrowth" in ctx.manifestation_terms
+
+
+def _experience_plan():
+    return SimpleNamespace(
+        entities=[("drug", "dutasteride", 1.0)],
+        vocabulary={},
+        surfaces={"dutasteride": "dutasteride"},
+        intent=SimpleNamespace(
+            interventions=["dutasteride"],
+            outcomes=["hair regrowth"],
+            conditions=["hair regrowth"],
+            synonyms={},
+            manifestation={
+                "normalized": "hair regrowth",
+                "site": {
+                    "normalized": "frontale",
+                    "search_terms": ["frontale", "hairline"],
+                },
+            },
+        ),
+    )
+
+
+def test_experience_context_is_relevant_without_positive_outcome():
+    plan = _experience_plan()
+    texts = [
+        "Uso dutasteride da 5 mesi, sto cercando di migliorare soprattutto "
+        "il frontale ma per ora non vedo risultati.",
+        "Dutasteride mi ha fatto aumentare lo shedding sul frontale.",
+        "Sto usando dutasteride da 8 mesi, ancora non so se sta funzionando.",
+    ]
+    for text in texts:
+        item = _item("Dutasteride experience", text)
+        relevant = relevance_filter(
+            [item], "dutasteride hair regrowth hairline",
+            entities=plan.entities, intent=plan.intent,
+        )
+        assert relevant == [item]
+        kept, stats = apply_relation_gate(relevant, plan)
+        assert kept == [item]
+        assert stats["final"] == 1
+        assert "experience_context" in item.match_reason
+
+
+def test_experience_context_does_not_accept_unrelated_agent_only_text():
+    plan = _experience_plan()
+    for text in (
+        "Uso dutasteride e ho la pressione alta.",
+        "Dutasteride menzionata nel testo senza esperienza sui capelli.",
+        "Dutasteride è stata menzionata all'inizio. "
+        + "Testo non correlato. " * 40
+        + "Il frontale viene discusso separatamente.",
+    ):
+        item = _item("Dutasteride note", text)
+        relevant = relevance_filter(
+            [item], "dutasteride hair regrowth hairline",
+            entities=plan.entities, intent=plan.intent,
+        )
+        assert relevant == []
+
 
 
 # ── Level A/B/C gate ─────────────────────────────────────────────────────────

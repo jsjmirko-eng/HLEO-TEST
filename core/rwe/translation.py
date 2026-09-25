@@ -112,12 +112,35 @@ def _deterministic_fallback(query: str, lang: str) -> str:
     MeSH when mapped). Returns "" when no entity is recognised.
     """
     try:
-        from core.vocab.entities import recognize
+        from core.vocab.entities import (
+            normalize_relation_connectors,
+            recognize,
+        )
         from core.vocab.resolver import build_resolver_from_env
         resolver = build_resolver_from_env()
         if resolver is None:
             return ""
         rec = recognize(query, lang or "en", resolver)
+        surfaces = getattr(rec, "surfaces", {}) or {}
+        if surfaces:
+            translated = normalize_relation_connectors(query)
+            replacements = [
+                (surface, canonical)
+                for canonical, surface in surfaces.items()
+                if surface and canonical
+            ]
+            for surface, canonical in sorted(
+                replacements, key=lambda item: len(item[0]), reverse=True
+            ):
+                translated = re.sub(
+                    rf"(?<!\w){re.escape(surface)}(?!\w)",
+                    canonical,
+                    translated,
+                    count=1,
+                    flags=re.IGNORECASE,
+                )
+            return re.sub(r"\s+", " ", translated).strip()
+
         canonicals = []
         for _etype, canonical, _conf in rec.entities:
             if canonical and canonical.lower() not in {

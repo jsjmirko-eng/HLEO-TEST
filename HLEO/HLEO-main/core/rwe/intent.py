@@ -112,6 +112,7 @@ class RWEQueryIntent(BaseModel):
     relation_type: Optional[str] = None   # explainability only, never ranked
     route: Optional[str] = None           # "oral" | "topical" | "unknown" | None
     temporal_relation: Optional[str] = None  # "after" | "during" | "before" | "unknown" | None
+    manifestation: Dict[str, object] = Field(default_factory=dict)
     source: str = "kb_fallback"           # "llm" | "kb_fallback"
     confidence: float = 0.0
     vocabulary: Dict[str, List[dict]] = Field(default_factory=dict)
@@ -320,6 +321,60 @@ def _slim_vocabulary(resolutions) -> Dict[str, List[dict]]:
         if entries:
             out[term] = entries
     return out
+
+
+def intent_from_relation(relation, *query_texts: str) -> RWEQueryIntent:
+    """Build RWE intent from the shared Scientific Chain relation.
+
+    The relation owns the semantic sides; provider vocabulary remains optional
+    evidence and cannot replace the relation with isolated entity matches.
+    """
+    agent = relation.agent or {}
+    event = relation.event or {}
+    manifestation = relation.manifestation or {}
+
+    def terms(field: dict) -> List[str]:
+        values = [field.get("normalized"), field.get("term"), *(field.get("search_terms") or [])]
+        return _clean_terms(values)
+
+    agent_term = _clean_term(agent.get("normalized") or agent.get("term"))
+    event_term = _clean_term(event.get("normalized") or event.get("term"))
+    manifestation_term = _clean_term(
+        manifestation.get("normalized") or manifestation.get("term")
+    )
+    interventions = [agent_term] if agent_term else []
+    outcomes = [event_term] if event_term else []
+    conditions = [manifestation_term] if manifestation_term else []
+    synonyms = {}
+    if agent_term:
+        synonyms[agent_term] = [t for t in terms(agent) if t != agent_term]
+    if event_term:
+        synonyms[event_term] = [t for t in terms(event) if t != event_term]
+    if manifestation_term:
+        synonyms[manifestation_term] = [
+            t for t in terms(manifestation) if t != manifestation_term
+        ]
+
+    manifestation_payload = dict(manifestation)
+    if manifestation.get("site"):
+        manifestation_payload["site"] = dict(manifestation["site"])
+
+    relation_type = {
+        "adverse_effect": "side_effect",
+        "efficacy": "treatment",
+    }.get((relation.relation_type or "").lower(), relation.relation_type)
+    return RWEQueryIntent(
+        interventions=interventions,
+        outcomes=outcomes,
+        conditions=conditions,
+        synonyms=synonyms,
+        relation_type=relation_type,
+        route=infer_route(*query_texts),
+        temporal_relation=infer_temporal_relation(*query_texts),
+        manifestation=manifestation_payload,
+        source="clinical_relation",
+        confidence=1.0,
+    )
 
 
 def build_intent(

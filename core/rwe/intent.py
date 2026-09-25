@@ -112,6 +112,7 @@ class RWEQueryIntent(BaseModel):
     relation_type: Optional[str] = None   # explainability only, never ranked
     route: Optional[str] = None           # "oral" | "topical" | "unknown" | None
     temporal_relation: Optional[str] = None  # "after" | "during" | "before" | "unknown" | None
+    manifestation: Dict[str, object] = Field(default_factory=dict)
     source: str = "kb_fallback"           # "llm" | "kb_fallback"
     confidence: float = 0.0
     vocabulary: Dict[str, List[dict]] = Field(default_factory=dict)
@@ -222,10 +223,12 @@ def extract_intent_llm(
         provider = build_provider()
         if provider is None:
             return None
-        attempts.append((provider.client, resolve_model(provider.name, model), provider.name))
+        provider_model = getattr(provider, "model_override", "") or resolve_model(provider.name, model)
+        attempts.append((provider.client, provider_model, provider.name))
         if provider.fallback is not None:
             fb = provider.fallback
-            attempts.append((fb.client, resolve_model(fb.name, model), fb.name))
+            fallback_model = getattr(fb, "model_override", "") or resolve_model(fb.name, model)
+            attempts.append((fb.client, fallback_model, fb.name))
     for raw_client, resolved_model, label in attempts:
         try:
             kwargs: dict = {
@@ -300,6 +303,56 @@ def intent_from_entities(entities: list, *query_texts: str) -> RWEQueryIntent:
         source="entities_fallback", confidence=0.5,
     )
 
+
+
+
+def intent_from_relation(relation, *query_texts: str) -> RWEQueryIntent:
+    """Build RWE intent from the shared Scientific Chain relation."""
+    agent = relation.agent or {}
+    event = relation.event or {}
+    manifestation = relation.manifestation or {}
+
+    def terms(field: dict, *, include_term: bool = True) -> List[str]:
+        values = [field.get("normalized"), *(field.get("search_terms") or [])]
+        if include_term:
+            values.insert(1, field.get("term"))
+        return _clean_terms(values)
+
+    agent_term = _clean_term(agent.get("normalized") or agent.get("term"))
+    event_term = _clean_term(event.get("normalized") or event.get("term"))
+    manifestation_term = _clean_term(
+        manifestation.get("normalized") or manifestation.get("term")
+    )
+    synonyms = {}
+    if agent_term:
+        synonyms[agent_term] = [t for t in terms(agent) if t != agent_term]
+    if event_term:
+        synonyms[event_term] = [t for t in terms(event) if t != event_term]
+    if manifestation_term:
+        synonyms[manifestation_term] = [
+            t for t in terms(manifestation, include_term=not manifestation.get("site"))
+            if t != manifestation_term
+        ]
+
+    relation_type = {
+        "adverse_effect": "side_effect",
+        "efficacy": "treatment",
+    }.get((relation.relation_type or "").lower(), relation.relation_type)
+    payload = dict(manifestation)
+    if manifestation.get("site"):
+        payload["site"] = dict(manifestation["site"])
+    return RWEQueryIntent(
+        interventions=[agent_term] if agent_term else [],
+        outcomes=[event_term] if event_term else [],
+        conditions=[manifestation_term] if manifestation_term else [],
+        synonyms=synonyms,
+        relation_type=relation_type,
+        route=infer_route(*query_texts),
+        temporal_relation=infer_temporal_relation(*query_texts),
+        manifestation=payload,
+        source="clinical_relation",
+        confidence=1.0,
+    )
 
 def _slim_vocabulary(resolutions) -> Dict[str, List[dict]]:
     """Slim serialisable view of the resolver output for the intent."""

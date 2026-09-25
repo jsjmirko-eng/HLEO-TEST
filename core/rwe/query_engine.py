@@ -40,8 +40,17 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from core.orchestrator import QueryOrchestrator
-from core.rwe.intent import build_intent, intent_scoring_enabled
-from core.vocab.entities import merge_recognitions, recognize
+from core.rwe.intent import (
+    build_intent,
+    intent_from_relation,
+    intent_scoring_enabled,
+)
+from core.vocab.entities import (
+    contains_relation_connector,
+    merge_recognitions,
+    recognize,
+    strip_relation_connectors,
+)
 from core.vocab.resolver import build_resolver_from_env
 
 logger = logging.getLogger(__name__)
@@ -102,6 +111,7 @@ class RWEQueryPlan:
     expanded_queries: List[ExpandedQuery] = field(default_factory=list)
     # QU-aware relevance (V3): structured intent; None = pure V1 behaviour.
     intent: Optional[object] = None                   # RWEQueryIntent | None
+    clinical_relation: Optional[object] = None        # shared ClinicalRelation
 
     def query_strings(self) -> List[str]:
         """Flat list of query strings (deduplicated, order preserved)."""
@@ -143,6 +153,12 @@ class RWEQueryPlan:
             "intent": (
                 self.intent.model_dump()
                 if self.intent is not None and hasattr(self.intent, "model_dump")
+                else None
+            ),
+            "clinical_relation": (
+                self.clinical_relation.to_dict()
+                if self.clinical_relation is not None
+                and hasattr(self.clinical_relation, "to_dict")
                 else None
             ),
         }
@@ -226,6 +242,92 @@ class RWEQueryEngine:
     def __init__(self, orchestrator: Optional[QueryOrchestrator] = None) -> None:
         self._orchestrator = orchestrator or QueryOrchestrator()
 
+    @staticmethod
+    def _relation_is_valid(relation) -> bool:
+        if relation is None:
+            return False
+        agent = relation.agent or {}
+        event = relation.event or {}
+        manifestation = relation.manifestation or {}
+        relation_type = (relation.relation_type or "").strip().lower()
+        return bool(
+            agent.get("identified") is True
+            and (agent.get("normalized") or "").strip()
+            and ((event.get("normalized") or "").strip()
+                 or (manifestation.get("normalized") or "").strip())
+            and relation_type and relation_type != "unknown"
+        )
+
+    @staticmethod
+    def _scientific_relation(query: str):
+        """Reuse ClinicalRelation only when its LLM provider is configured."""
+        try:
+            from core.relational_search import RelationalSearch
+            search = RelationalSearch()
+            if getattr(search, "_client", None) is None:
+                return None
+            return search._extract_relation(query)
+        except Exception as exc:  # noqa: BLE001 — RWE degrades to Catena C
+            logger.info("Scientific relation reuse unavailable: %s", exc)
+            return None
+
+    @staticmethod
+    def _site_terms(relation) -> list[str]:
+        site = (relation.manifestation or {}).get("site") or {}
+        return list(dict.fromkeys(
+            str(term).strip()
+            for term in [site.get("normalized"), *(site.get("search_terms") or [])]
+            if str(term or "").strip()
+        ))
+
+    @classmethod
+    def _relation_context(cls, relation) -> str:
+        terms = []
+        for field in (relation.agent, relation.event, relation.manifestation):
+            field = field or {}
+            term = field.get("normalized") or field.get("term")
+            if term:
+                terms.append(str(term).strip())
+        terms.extend(cls._site_terms(relation)[:1])
+        if relation.temporal:
+            terms.append(str(relation.temporal).strip())
+        return " ".join(dict.fromkeys(term for term in terms if term))
+
+    @staticmethod
+    def _relation_terms(relation) -> list[str]:
+        terms = []
+        for field in (relation.agent, relation.event, relation.manifestation):
+            field = field or {}
+            terms.extend([field.get("normalized"), *(field.get("search_terms") or [])])
+            if field is not relation.manifestation or not field.get("site"):
+                terms.append(field.get("term"))
+        if relation.temporal:
+            terms.append(relation.temporal)
+        return list(dict.fromkeys(
+            str(term).strip() for term in terms if str(term or "").strip()
+        ))
+
+    @classmethod
+    def _relation_entities(cls, relation, recognition):
+        allowed = {term.lower() for term in cls._relation_terms(relation)}
+        entities, resolutions, surfaces = [], {}, {}
+        for etype, canonical, confidence in getattr(recognition, "entities", []) or []:
+            surface = (getattr(recognition, "surfaces", {}) or {}).get(canonical, canonical)
+            if surface.lower() not in allowed and canonical.lower() not in allowed:
+                continue
+            entities.append((etype, canonical, confidence))
+            recognized_resolutions = getattr(recognition, "resolutions", {}) or {}
+            if canonical in recognized_resolutions:
+                resolutions[canonical] = recognized_resolutions[canonical]
+            surfaces[canonical] = surface
+        for etype, field in (("drug", relation.agent), ("symptom", relation.event),
+                             ("condition", relation.manifestation)):
+            field = field or {}
+            canonical = (field.get("normalized") or field.get("term") or "").strip().lower()
+            if canonical and not any(c == canonical for _t, c, _cf in entities):
+                entities.append((etype, canonical, 1.0))
+        return entities, resolutions, surfaces
+
     # ── Public API ───────────────────────────────────────────────────────────
 
     def plan(self, query: str) -> RWEQueryPlan:
@@ -254,6 +356,16 @@ class RWEQueryEngine:
         )
         translation_method = "orchestrator" if translation_applied else ""
 
+        relation_candidate = self._scientific_relation(q)
+        clinical_relation = (
+            relation_candidate
+            if self._relation_is_valid(relation_candidate) else None
+        )
+        if clinical_relation is not None:
+            translated = self._relation_context(clinical_relation)
+            translation_applied = translated.lower() != q.lower()
+            translation_method = "clinical_relation"
+
         # ── 1b. Robust RWE translation fallback (plain-text, JSON-free) ──────
         # The orchestrator's single JSON-mode call can fail on some LLM
         # providers (observed: Groq gpt-oss-120b json_validate_failed x5),
@@ -279,7 +391,15 @@ class RWEQueryEngine:
         entities: list = []
         resolutions: dict = {}
         surfaces: dict = {}
-        if resolver is not None:
+        if clinical_relation is not None:
+            rec = None
+            if resolver is not None:
+                relation_terms = self._relation_terms(clinical_relation)
+                rec = recognize(" ".join(relation_terms), "en", resolver)
+            entities, resolutions, surfaces = self._relation_entities(
+                clinical_relation, rec
+            )
+        elif resolver is not None:
             rec_en = recognize(translated, "en", resolver)
             if lang not in {"und", "en"} and translated.lower() != q.lower():
                 rec_src = recognize(q, lang, resolver)
@@ -289,11 +409,14 @@ class RWEQueryEngine:
             entities = rec.entities
             resolutions = rec.resolutions
             surfaces = rec.surfaces
-            entities, resolutions, surfaces = self._sanitize_entities(
-                entities, resolutions, surfaces, translated)
+        entities, resolutions, surfaces = self._sanitize_entities(
+            entities, resolutions, surfaces
+        )
 
         # ── 3. Canonicalisation (provider preferred terms; translation intact)
         canonical = self._canonicalize(translated, entities, surfaces)
+        if clinical_relation is not None:
+            canonical = self._relation_context(clinical_relation)
 
         # ── 4. QU intent (built BEFORE expansion so intent-driven combos can
         # join the expanded set) ─────────────────────────────────────────────
@@ -304,7 +427,11 @@ class RWEQueryEngine:
         # without a recognised relation keep intent=None → exact V1 behaviour.
         vocabulary = self._slim_vocabulary(resolutions)
         intent = None
-        if intent_scoring_enabled():
+        if clinical_relation is not None:
+            intent = intent_from_relation(clinical_relation, translated, q)
+            if vocabulary:
+                intent.vocabulary = vocabulary
+        elif intent_scoring_enabled():
             intent = build_intent(translated, q, entities, use_llm=True)
             if vocabulary:
                 intent.vocabulary = vocabulary
@@ -322,6 +449,7 @@ class RWEQueryEngine:
             entities=entities,
             resolutions=resolutions,
             intent=intent,
+            clinical_relation=clinical_relation,
         )
 
         return RWEQueryPlan(
@@ -336,66 +464,16 @@ class RWEQueryEngine:
             translation_method=translation_method,
             expanded_queries=expanded,
             intent=intent,
+            clinical_relation=clinical_relation,
         )
 
     # ── Entity sanitisation (RWE precision guard) ────────────────────────────
-
-    @staticmethod
-    def _provider_identity_is_plausible(
-        canonical: str,
-        surface: str,
-        resolution,
-    ) -> bool:
-        """Keep provider identities that are plausible for their surface.
-
-        Providers often return a high-confidence normalized hit for a generic
-        n-gram such as ``fall induced``.  The hit may be a completely
-        unrelated multi-word concept that merely shares one token.  Identity
-        match kinds may bridge a genuine lexical gap (``hair loss`` →
-        ``alopecia``), but weak matches must still have substantial lexical
-        overlap with the surface.
-        """
-        identity_kinds = {
-            "exact", "canonical", "preferred", "synonym", "translation",
-            "abbreviation", "orthographic_variant", "colloquial", "normalized",
-        }
-        matches = getattr(resolution, "matches", []) if resolution else []
-        if any(getattr(match, "match_kind", "") == "translation"
-               for match in matches):
-            return True
-        if not any(getattr(match, "match_kind", "") in identity_kinds
-                   for match in matches):
-            return False
-
-        surface_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())
-        canonical_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
-        if not surface_tokens or not canonical_tokens:
-            return False
-        if " ".join(surface_tokens) == " ".join(canonical_tokens):
-            return True
-
-        def lexical_match(left: str, right: str) -> bool:
-            return left == right or (
-                len(left) >= 4 and len(right) >= 4
-                and (left.startswith(right) or right.startswith(left))
-            )
-
-        overlap = sum(
-            any(lexical_match(token, candidate) for candidate in surface_tokens)
-            for token in canonical_tokens
-        )
-        # A one-token canonical can be a genuine provider lexical gap such as
-        # ``hair loss`` → ``alopecia``; multi-word unrelated concepts cannot.
-        if len(canonical_tokens) == 1 and overlap == 0:
-            return True
-        return overlap / max(len(canonical_tokens), len(surface_tokens)) >= 0.5
 
     @staticmethod
     def _sanitize_entities(
         entities: list,
         resolutions: dict,
         surfaces: dict,
-        query_text: str = "",
     ):
         """Drop provider homonymy artefacts from the recognised entities.
 
@@ -414,71 +492,24 @@ class RWEQueryEngine:
         """
         keep_canonicals = set()
         kept = []
-        grammar = {
-            "the", "a", "an", "of", "to", "in", "on", "for", "and", "or",
-            "with", "without", "di", "il", "la", "per", "con", "e", "una",
-        }
         for etype, canonical, conf in entities or []:
-            canonical = str(canonical or "").strip()
-            surface = str((surfaces or {}).get(canonical, canonical) or "").strip()
-            surf_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())
-            canon_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
-            # Providers can return concatenated descriptions such as
-            # "finasteride | serum or plasma | drug toxicology" for a short
-            # surface. They are lookup artefacts, not user concepts.
-            if "|" in canonical or (surf_tokens and set(surf_tokens) <= grammar):
-                continue
-            if len(surf_tokens) <= 1 and len(canon_tokens) > 1:
-                continue
-            if len(canon_tokens) > 6 and not set(surf_tokens).intersection(canon_tokens):
-                continue
-            if not RWEQueryEngine._provider_identity_is_plausible(
-                canonical, surface, (resolutions or {}).get(canonical)
-            ):
-                continue
+            surface = (surfaces or {}).get(canonical, canonical)
+            surf_tokens = [t for t in re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())]
+            if len(surf_tokens) <= 1:
+                canon_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
+                if len(canon_tokens) > 1:
+                    continue
             keep_canonicals.add(canonical)
             kept.append((etype, canonical, conf))
-        # Preserve a surface when the provider only changes inflection (for
-        # example, ``fall`` → ``falls``); otherwise entity combos can re-add
-        # the provider's generic label after canonicalization preserved it.
-        normalized_kept = []
-        for etype, canonical, conf in kept:
-            surface = str((surfaces or {}).get(canonical, canonical) or "").strip()
-            surface_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", surface.lower())
-            canonical_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
-            if (len(surface_tokens) == len(canonical_tokens) == 1
-                    and surface_tokens[0].rstrip("s")
-                    == canonical_tokens[0].rstrip("s")):
-                resolution = (resolutions or {}).get(canonical)
-                if resolution is not None and resolutions is not None:
-                    resolutions[surface] = resolution
-                if surfaces is not None:
-                    surfaces[surface] = surface
-                canonical = surface
-            normalized_kept.append((etype, canonical, conf))
-        kept = normalized_kept
-
         # Same query surface resolved to several provider concepts (e.g. MeSH
         # "Sexual Dysfunction, Physiological" + "Sexual Dysfunctions,
         # Psychological" for "sexual dysfunction"): keep the most confident
         # one, so canonicalisation/expansion apply one concept per phrase.
         by_surface: dict = {}
-        query_lower = (query_text or "").lower()
-        grouped: dict[str, list] = {}
-        for item in kept:
-            surface = ((surfaces or {}).get(item[1], item[1])).lower()
-            grouped.setdefault(surface, []).append(item)
-        for surface, candidates in grouped.items():
-            query_exact = [item for item in candidates if re.search(
-                rf"(?<!\w){re.escape(item[1].lower())}(?!\w)", query_lower)]
-            candidates = query_exact or candidates
-            by_surface[surface] = max(
-                candidates,
-                key=lambda item: (
-                    item[1].lower() == surface,
-                    item[2],
-                ),
-            )
+        for etype, canonical, conf in kept:
+            surface = ((surfaces or {}).get(canonical, canonical)).lower()
+            if surface not in by_surface or conf > by_surface[surface][2]:
+                by_surface[surface] = (etype, canonical, conf)
         kept = list(by_surface.values())
         keep_canonicals = {c for _t, c, _cf in kept}
         resolutions = {c: r for c, r in (resolutions or {}).items()
@@ -489,23 +520,16 @@ class RWEQueryEngine:
 
     @staticmethod
     def _canonicalize(translated: str, entities: list, surfaces: dict) -> str:
-        """Replace provider-verified aliases without changing query meaning."""
+        """Replace provider-verified surface forms with their canonical
+        preferred term (e.g. "propecia" → "finasteride"). The translated
+        representation itself is never mutated."""
         out = translated
         for _etype, canonical, _conf in entities or []:
             surface = (surfaces or {}).get(canonical, canonical)
             for term in {surface, canonical}:
-                if not term or term.lower() == canonical.lower():
-                    continue
-                # A provider's inflection-only label is not a canonical
-                # improvement: preserve the user's translated wording.
-                term_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", term.lower())
-                canonical_tokens = re.findall(r"[a-zà-öø-ÿ0-9]+", canonical.lower())
-                if (len(term_tokens) == len(canonical_tokens) == 1
-                        and (term_tokens[0].rstrip("s")
-                             == canonical_tokens[0].rstrip("s"))):
-                    continue
-                out = re.sub(rf"(?<!\w){re.escape(term)}(?!\w)", canonical,
-                             out, flags=re.IGNORECASE)
+                if term and term.lower() != canonical.lower():
+                    out = re.sub(rf"(?<!\w){re.escape(term)}(?!\w)", canonical,
+                                 out, flags=re.IGNORECASE)
         return re.sub(r"\s+", " ", out).strip()
 
     @staticmethod
@@ -551,6 +575,7 @@ class RWEQueryEngine:
         entities: list,
         resolutions: Optional[dict] = None,
         intent=None,
+        clinical_relation=None,
     ) -> List[ExpandedQuery]:
         """
         Build the controlled set of expanded queries.
@@ -593,6 +618,28 @@ class RWEQueryEngine:
                 expanded_term=canonical_query,
                 query_origin="canonicalization",
             ))
+
+        if clinical_relation is not None:
+            manifestation = clinical_relation.manifestation or {}
+            agent = (clinical_relation.agent or {}).get("normalized", "").strip()
+            outcomes = list(dict.fromkeys(
+                str(term).strip()
+                for term in [manifestation.get("normalized"),
+                             *(manifestation.get("search_terms") or [])]
+                if str(term or "").strip()
+            ))
+            for outcome in outcomes:
+                for site in self._site_terms(clinical_relation):
+                    queries.append(ExpandedQuery(
+                        query=f"{agent} {outcome} {site}".strip(),
+                        expansion_type=EXP_COMBO,
+                        source_language="en",
+                        matched_entities=[term for term in (agent, outcome, site) if term],
+                        original_term=manifestation.get("term", ""),
+                        expanded_term=f"{outcome} + {site}",
+                        source_entity="manifestation.site",
+                        query_origin="clinical_relation",
+                    ))
 
         if not entities:
             return self._dedup_and_cap(queries, canonical_names)
@@ -752,52 +799,63 @@ class RWEQueryEngine:
 
     @staticmethod
     def _vocab_variant_allowed(source_entity: str, candidate: str, etype: str, base_query: str, provider: str) -> bool:
-        """Minimal rule-based filter to block noisy provider variants.
-
-        Rules (conservative):
-        - reject combined product names (contain '/', '+', '&')
-        - require the source_entity token to appear in the candidate
-        - strip dosage/form tokens and numeric tokens; require the anchor token
-          to cover at least 50% of the remaining tokens
-        - if the query expresses causality/adverse cues and the entity is a
-          condition/symptom, require the candidate to contain an adverse/event token
-        """
-        import re
+        """Allow identity variants while rejecting generic relational noise."""
         if not candidate:
             return False
-        # Reject obvious multi-ingredient/product combos
         if any(ch in candidate for ch in ("/", "+", "&")):
             return False
-        # Normalize
-        s = re.sub(r"[^\w\s']", " ", candidate.lower())
-        toks = [re.sub(r"'s$", "", t) for t in s.split() if t]
-        if not toks:
+
+        candidate_tokens = [
+            re.sub(r"'s$", "", token)
+            for token in re.findall(r"[\w']+", candidate.lower())
+        ]
+        anchor_tokens = re.findall(r"[\w']+", (source_entity or "").lower())
+        if not candidate_tokens or not anchor_tokens:
             return False
-        anchor = (source_entity or "").lower().strip()
-        if not anchor:
+
+        # A variant must retain the complete source phrase, not just a generic
+        # token shared with unrelated concepts (e.g. hair → Hair Analysis).
+        anchor_set = set(anchor_tokens)
+        candidate_set = set(candidate_tokens)
+        retains_anchor = anchor_set.issubset(candidate_set)
+        if not retains_anchor and candidate_set & anchor_set:
+            # A partial match is a related generic concept, not an identity
+            # variant (e.g. hair + Hair, Fetal for the phrase hair loss).
             return False
-        # Anchor must appear in tokens
-        if anchor not in toks:
-            return False
-        # Remove dosage/form tokens and pure numeric tokens
-        DOSAGE_TOKENS = {
+
+        dosage_tokens = {
             "mg", "mcg", "g", "ml", "tablet", "tablets", "capsule",
             "capsules", "oral", "topical", "cream", "lotion", "ointment",
-            "patch", "solution", "tablet", "tab",
+            "patch", "solution", "tab",
         }
-        toks_clean = [t for t in toks if (not t.isdigit() and t not in DOSAGE_TOKENS)]
-        if not toks_clean:
+        meaningful = [
+            token for token in candidate_tokens
+            if not token.isdigit() and token not in dosage_tokens
+        ]
+        if not meaningful:
             return False
-        overlap = sum(1 for t in toks_clean if t == anchor)
-        if overlap / max(1, len(toks_clean)) < 0.75:
+        if retains_anchor and not anchor_set.issubset(set(meaningful)):
             return False
-        # If query looks causal/adverse and entity is condition/symptom, require event terms
-        q = (base_query or "").lower()
-        adverse_cues = {"loss", "shedding", "alopecia", "effluvium", "fall", "fallout", "caduta", "peggioramento", "worse", "side", "effect", "effects", "effetto", "effetti"}
-        causal_markers = ("cause", "causa", "causes", "after", "sospetto", "side effect", "effetto", "dopo")
-        if etype in ("condition", "symptom") and any(m in q for m in causal_markers):
-            joined = " ".join(toks_clean)
-            if not any(ev in joined for ev in adverse_cues):
+
+        query = (base_query or "").lower()
+        relational = contains_relation_connector(query) or bool(
+            re.search(r"\b(?:cause|causes|caused|effect|effects|side)\b", query)
+        )
+        if etype in {"condition", "symptom"} and relational:
+            # In an exposure relation, a condition variant must keep the event
+            # phrase present in the candidate instead of expanding generic terms.
+            relation_query = strip_relation_connectors(query)
+            query_tokens = set(re.findall(r"[\w']+", relation_query))
+            keeps_event_context = bool(
+                (set(meaningful) - anchor_set) & query_tokens
+            ) or set(meaningful).issubset(query_tokens)
+            is_provider_synonym = (
+                not retains_anchor
+                and len(anchor_tokens) > 1
+                and len(candidate_tokens) == 1
+            )
+            if not keeps_event_context and not is_provider_synonym:
                 return False
+
         return True
 

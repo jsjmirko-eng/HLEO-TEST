@@ -65,7 +65,8 @@ class ClinicalRelation:
     original_query: str
     agent: dict = field(default_factory=dict)           # {term,normalized,role,identified,search_terms}
     event: dict = field(default_factory=dict)           # {term,normalized}
-    manifestation: dict = field(default_factory=dict)   # {term,normalized,role,search_terms}
+    # Optional site is nested in manifestation: {term,normalized,role,search_terms,site}
+    manifestation: dict = field(default_factory=dict)
     temporal: str = ""
     relation_type: str = "unknown"
     scientific_query: str = ""
@@ -107,7 +108,13 @@ Return ONLY a JSON object (no markdown, no commentary) with this schema:
   "query_original": str,
   "agent": {"term": str, "normalized": str, "role": str, "identified": bool, "search_terms": [str]},
   "event": {"term": str, "normalized": str},
-  "manifestation": {"term": str, "normalized": str, "role": str, "search_terms": [str]},
+  "manifestation": {
+    "term": str,
+    "normalized": str,
+    "role": str,
+    "search_terms": [str],
+    "site": {"term": str, "normalized": str, "search_terms": [str]}
+  },
   "temporal": str,
   "relation_type": str,
   "scientific_query": str,
@@ -134,6 +141,18 @@ Never default all negatives to adverse_effect.
 search_terms: provide 2-5 English synonyms/variants for SEARCHING (INN for drugs; scientific
 terms for manifestations, e.g. erythema, "skin irritation", "cutaneous irritation", dermatitis).
 These are used to match articles by synonym, so include clinically equivalent terms.
+
+MANIFESTATION SITE: preserve an anatomical site or anatomical qualifier separately inside
+manifestation.site when the user specifies one. The manifestation itself MUST remain the outcome,
+never the site. For example, for "Ho recuperato l'attaccatura dei capelli con dutasteride?"
+return manifestation.normalized="hair regrowth", manifestation.role="outcome", and
+manifestation.site={"term":"attaccatura dei capelli", "normalized":"hairline",
+"search_terms":["hairline", "frontal hairline", "attaccatura dei capelli"]}.
+Do NOT set manifestation.normalized="hairline" or manifestation.role="site". Keep the outcome
+in manifestation.normalized; site is optional and MUST be omitted or empty when the query does
+not explicitly specify an anatomical site. Do not infer a site such as scalp or hairline from
+generic words like "hair" or "capelli". Never turn the site into a separate manifestation or
+unrelated entity.
 
 scientific_query: REQUIRE the agent AND manifestation to co-occur, joined with AND. For
 adverse_effect append a causal group using ONLY: "adverse effect","side effect",induced,
@@ -340,7 +359,12 @@ class RelationalSearch:
                       count=1, flags=re.IGNORECASE)
 
     @staticmethod
-    def _variant_relation(rel: ClinicalRelation, agent: str, manifestation: str) -> ClinicalRelation:
+    def _variant_relation(
+        rel: ClinicalRelation,
+        agent: str,
+        manifestation: str,
+        site: str = "",
+    ) -> ClinicalRelation:
         variant = copy.deepcopy(rel)
         variant.agent = dict(variant.agent)
         variant.manifestation = dict(variant.manifestation)
@@ -348,6 +372,11 @@ class RelationalSearch:
         variant.agent["search_terms"] = [agent]
         variant.manifestation["normalized"] = manifestation
         variant.manifestation["search_terms"] = [manifestation]
+        if site and variant.manifestation.get("site"):
+            site_data = dict(variant.manifestation["site"])
+            site_data["normalized"] = site
+            site_data["search_terms"] = [site]
+            variant.manifestation["site"] = site_data
         return variant
 
     def _expand_relation(self, rel: ClinicalRelation, original_query: str):
@@ -367,27 +396,55 @@ class RelationalSearch:
                 for term, result in resolutions.items() if result.matches
             }
 
+        site_data = rel.manifestation.get("site") or {}
+        site_terms = list(dict.fromkeys(
+            str(term).strip()
+            for term in [site_data.get("normalized"), *(site_data.get("search_terms") or [])]
+            if str(term or "").strip()
+        ))
+        outcome_terms = list(dict.fromkeys(
+            str(term).strip()
+            for term in [manifestation, *(rel.manifestation.get("search_terms") or [])]
+            if str(term or "").strip()
+        ))
+        primary_site = site_terms[0] if site_terms else ""
+
         variants = []
         original_agent = str(rel.agent.get("term") or "").strip()
         original_manifestation = str(rel.manifestation.get("term") or "").strip()
         if original_agent and original_agent.lower() != agent.lower():
-            variants.append((original_agent, original_manifestation or manifestation, {
+            variants.append((original_agent, original_manifestation or manifestation, primary_site, {
                 "query": f"{original_agent} {original_manifestation or manifestation}".strip(),
                 "original_term": original_query, "expanded_term": original_agent,
                 "match_kind": "exact", "tier": 1.0, "provider": None,
                 "source_entity": original_agent, "query_origin": "user",
             }))
-        variants.append((agent, manifestation, {
+        variants.append((agent, manifestation, primary_site, {
             "query": base, "original_term": original_query,
             "expanded_term": base, "match_kind": "canonical", "tier": 1.0,
             "provider": None, "source_entity": None, "query_origin": "canonicalization",
         }))
         if original_query.strip().lower() != base.lower():
-            variants.insert(0, (agent, manifestation, {
+            variants.insert(0, (agent, manifestation, primary_site, {
                 "query": base, "original_term": original_query,
                 "expanded_term": base, "match_kind": "translation", "tier": 0.85,
                 "provider": None, "source_entity": None, "query_origin": "translation",
             }))
+
+        # Outcome and site alternatives stay attached to the same manifestation;
+        # they are not crossed with unrelated vocabulary entities.
+        for outcome_term in outcome_terms:
+            for site_term in site_terms:
+                if outcome_term.lower() == manifestation.lower() and site_term.lower() == primary_site.lower():
+                    continue
+                variants.append((agent, outcome_term, site_term, {
+                    "query": f"{agent} {outcome_term} {site_term}".strip(),
+                    "original_term": site_data.get("term") or site_term,
+                    "expanded_term": f"{outcome_term} + {site_term}",
+                    "match_kind": "site_variant", "tier": 1.0, "provider": None,
+                    "source_entity": "manifestation.site", "query_origin": "clinical_relation",
+                }))
+
         for source_entity, side in ((agent, "agent"), (manifestation, "manifestation")):
             resolution = resolutions.get(source_entity)
             if resolution is None:
@@ -405,7 +462,7 @@ class RelationalSearch:
                         a = term
                     else:
                         m = term
-                    variants.append((a, m, {
+                    variants.append((a, m, primary_site, {
                         "query": f"{a} {m}".strip(),
                         "original_term": source_entity,
                         "expanded_term": term,
@@ -416,16 +473,16 @@ class RelationalSearch:
 
         unique = []
         seen = set()
-        for a, m, provenance in variants:
-            key = (a.lower(), m.lower())
+        for a, m, site, provenance in variants:
+            key = (a.lower(), m.lower(), site.lower())
             if not key[0] and not key[1] or key in seen:
                 continue
             seen.add(key)
-            variant = self._variant_relation(rel, a, m)
+            variant = self._variant_relation(rel, a, m, site)
             provenance = dict(provenance)
             provenance["query"] = self._build_pubmed_query(variant)
             provenance["source_language"] = "en"
-            provenance["matched_entities"] = [x for x in (a, m) if x]
+            provenance["matched_entities"] = [x for x in (a, m, site) if x]
             unique.append((variant, provenance))
             if len(unique) >= 16:
                 break
@@ -598,7 +655,10 @@ class RelationalSearch:
 
     def _build_pubmed_query(self, rel: ClinicalRelation) -> str:
         ag = self._or_group(rel.agent.get("search_terms") or [rel.agent.get("normalized", "")])
-        mn = self._or_group(rel.manifestation.get("search_terms") or [rel.manifestation.get("normalized", "")])
+        manifestation_terms = rel.manifestation.get("search_terms") or [rel.manifestation.get("normalized", "")]
+        site = rel.manifestation.get("site") or {}
+        manifestation_terms = [*manifestation_terms, *(site.get("search_terms") or [])]
+        mn = self._or_group(list(dict.fromkeys(manifestation_terms)))
         causal = self._CAUSAL.get(rel.relation_type, "")
         # [tiab] restricts to title/abstract; hasabstract ensures an abstract exists.
         parts = []
@@ -613,7 +673,10 @@ class RelationalSearch:
 
     def _build_epmc_query(self, rel: ClinicalRelation) -> str:
         ag = self._or_group(rel.agent.get("search_terms") or [rel.agent.get("normalized", "")])
-        mn = self._or_group(rel.manifestation.get("search_terms") or [rel.manifestation.get("normalized", "")])
+        manifestation_terms = rel.manifestation.get("search_terms") or [rel.manifestation.get("normalized", "")]
+        site = rel.manifestation.get("site") or {}
+        manifestation_terms = [*manifestation_terms, *(site.get("search_terms") or [])]
+        mn = self._or_group(list(dict.fromkeys(manifestation_terms)))
         causal = self._CAUSAL.get(rel.relation_type, "")
         # Force the agent into TITLE or ABSTRACT (measured ~100% agent presence),
         # require manifestation, optional causal group.
@@ -630,7 +693,8 @@ class RelationalSearch:
         # ClinicalTrials v2 query.term is free-text; use agent + manifestation.
         ag = rel.agent.get("normalized", "")
         mn = rel.manifestation.get("normalized", "")
-        return f"{ag} {mn}".strip() or rel.original_query
+        site = (rel.manifestation.get("site") or {}).get("normalized", "")
+        return f"{ag} {mn} {site}".strip() or rel.original_query
 
     # ── (4) Hard filter (synonym-tolerant) ────────────────────────────────────
 

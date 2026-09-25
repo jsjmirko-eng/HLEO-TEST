@@ -28,6 +28,8 @@ class LLMProvider:
     name: str
     client: Any
     fallback: Optional["LLMProvider"] = None
+    use_chain: bool = False
+    model_override: str = ""
 
 
 def _secret_key() -> str:
@@ -207,7 +209,7 @@ def _build_default_openai(provider_name: str, api_key: str) -> Optional[LLMProvi
     try:
         from openai import OpenAI
         name = (provider_name or "openai").strip() or "openai"
-        return LLMProvider(name=name, client=OpenAI(api_key=api_key))
+        return LLMProvider(name=name, client=OpenAI(api_key=api_key), use_chain=True)
     except Exception as exc:
         logger.warning("LLM provider: OpenAI init failed for %s — %s", provider_name, exc)
         return None
@@ -220,19 +222,49 @@ def _build_generic_openai_compatible(provider_name: str, api_key: str, base_url:
         from openai import OpenAI
         name = (provider_name or "openai-compatible").strip() or "openai-compatible"
         client = OpenAI(api_key=api_key or "generic", base_url=base_url)
-        return LLMProvider(name=name, client=client)
+        return LLMProvider(name=name, client=client, use_chain=True)
     except Exception as exc:
         logger.warning("LLM provider: generic OpenAI-compatible init failed for %s — %s", provider_name, exc)
         return None
 
 
+def _provider_from_manager_chain(chain) -> Optional[LLMProvider]:
+    """Adapt configured Admin slots to the legacy caller contract."""
+    managed_stages = [stage for stage in (chain or [])
+                      if int(getattr(stage, "slot_index", 0) or 0) > 0]
+    if not managed_stages:
+        return None
+
+    fallback = None
+    for stage in reversed(managed_stages):
+        fallback = LLMProvider(
+            name=stage.name,
+            client=stage.client,
+            fallback=fallback,
+            use_chain=True,
+            model_override=stage.model_override,
+        )
+    return fallback
+
+
 def build_provider(prefer: Optional[str] = None) -> Optional[LLMProvider]:
     """Build the configured LLM provider.
 
-    Provider names are free-form labels only. The runtime connection target is
-    determined by the configured Base URL, API Key, and Model; provider labels
-    never route to a special endpoint or select a fallback.
+    Enabled Admin slots are resolved by the Provider Manager and exposed through
+    the legacy wrapper expected by existing callers. Environment configuration
+    remains the fallback when no Admin slot is usable.
     """
+    managed = _provider_from_manager_chain(
+        build_provider_chain(
+            migrate_legacy=False,
+            include_env_fallback=False,
+        )
+    )
+    if managed is not None:
+        if prefer:
+            managed.name = prefer
+        return managed
+
     active = get_active_llm_settings()
     env_cfg = _env_llm_config()
 
@@ -259,16 +291,19 @@ def llm_available() -> bool:
     return build_provider() is not None
 
 
-def build_provider_chain():
-    """Return a list of ProviderStage from the configured slots.
+def build_provider_chain(*, migrate_legacy: bool = True,
+                         include_env_fallback: bool = True):
+    """Return Provider Manager stages from the configured slots.
 
-    Wraps core.llm_manager.get_provider_chain(). Returns [] when no
-    provider is configured. Callers that need a single LLMProvider for
-    backward compatibility should use build_provider() instead.
+    Returns [] when no provider is configured. Callers that need a single
+    LLMProvider for backward compatibility should use build_provider().
     """
     try:
         from core.llm_manager import get_provider_chain
-        return get_provider_chain()
+        return get_provider_chain(
+            migrate_legacy=migrate_legacy,
+            include_env_fallback=include_env_fallback,
+        )
     except Exception as exc:
         logger.warning("build_provider_chain: failed — %s", exc)
         return []

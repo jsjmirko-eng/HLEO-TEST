@@ -111,6 +111,45 @@ _DURATION_RE = re.compile(
     re.IGNORECASE)
 
 
+def experience_relation_match(
+    body: str,
+    treatment: str,
+    condition: str,
+    agent_hits: List[str],
+    intent=None,
+) -> Tuple[bool, str]:
+    """Recognize an exposure-linked experience without requiring success.
+
+    This checks the relation context already represented by the intent: an
+    explicit site attached to the manifestation, or an exposure with a duration
+    that documents an ongoing treatment experience. It does not classify the
+    outcome and does not add clinical synonyms.
+    """
+    if not agent_hits:
+        return False, ""
+    content = f"{body or ''}\n{treatment or ''}\n{condition or ''}".lower()
+    site = (getattr(intent, "manifestation", None) or {}).get("site") or {}
+    site_terms = [site.get("term"), site.get("normalized"),
+                  *(site.get("search_terms") or [])]
+    site_hits = [str(term).lower().strip() for term in site_terms if term and
+                 _occurrences(content, str(term).lower().strip())]
+    duration = _ONSET_RE.search(content) or _DURATION_RE.search(content)
+    agent_positions = [pos for term in agent_hits
+                       for pos in _occurrences(content, term)]
+    if site_hits:
+        site_positions = [pos for term in site_hits
+                          for pos in _occurrences(content, term)]
+        if any(abs(agent_pos - site_pos) <= _RELATION_WINDOW
+               for agent_pos in agent_positions
+               for site_pos in site_positions):
+            return True, site_hits[0]
+    if duration and any(abs(agent_pos - duration.start()) <= _RELATION_WINDOW
+                        for agent_pos in agent_positions):
+        return True, duration.group(0).strip()
+    return False, ""
+
+
+
 def _tokens(text: str) -> List[str]:
     return _WORD_RE.findall((text or "").lower())
 
@@ -253,13 +292,15 @@ def build_relation_context(plan) -> Optional[RelationContext]:
         synonyms = getattr(intent, "synonyms", None) or {}
         interventions = [str(t).lower() for t in
                          (getattr(intent, "interventions", None) or [])]
-        outcomes = [str(t).lower() for t in
-                    (getattr(intent, "outcomes", None) or [])]
         for t in interventions:
             ctx.agent_terms.append(t)
             ctx.agent_terms.extend(
                 str(a).lower() for a in synonyms.get(t, []) or [])
-        for t in outcomes:
+        for t in [
+            *(getattr(intent, "outcomes", None) or []),
+            *(getattr(intent, "conditions", None) or []),
+        ]:
+            t = str(t).lower()
             if _is_generic_surface(t):
                 continue
             ctx.manifestation_terms.append(t)
@@ -465,10 +506,13 @@ def apply_relation_gate(
             continue
         stats["after_agent"] += 1
 
-        # ── Level B: manifestation ───────────────────────────────────────────
+        # ── Level B: manifestation or direct experience context ───────────────
         manifestation_hits = sorted({
             t for t in ctx.manifestation_terms
             if _occurrences(body, t) or _occurrences(condition, t)})
+        experience_match, experience_signal = experience_relation_match(
+            body, treatment, condition, agent_hits, getattr(plan, "intent", None))
+        contextual_manifestation = False
         manifestation_sentences: List[str] = []
         if not manifestation_hits and len(ctx.manifestation_tokens) >= 2:
             # Phrase-tokens co-present in ONE sentence (not isolated words).
@@ -478,6 +522,9 @@ def apply_relation_gate(
             if manifestation_sentences:
                 manifestation_hits = [
                     " ".join(sorted(ctx.manifestation_tokens)) + " (sentence)"]
+        if not manifestation_hits and experience_match:
+            manifestation_hits = [f"experience_context ({experience_signal})"]
+            contextual_manifestation = True
         if not manifestation_hits:
             stats["dropped_manifestation"] += 1
             it.metadata["relation_gate"] = {
@@ -494,6 +541,9 @@ def apply_relation_gate(
             # ARE the link.
             verified = True
             kind, dist = "structured_record", None
+        elif contextual_manifestation:
+            verified = True
+            kind, dist = "experience_context", None
         else:
             verified, kind, dist = _level_c_relation(
                 body, title, agent_hits,

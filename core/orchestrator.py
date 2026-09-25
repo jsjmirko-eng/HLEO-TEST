@@ -70,6 +70,10 @@ class QueryOrchestrator:
 
     def __init__(self) -> None:
         self._client = None
+        self._load_client()
+
+    def _load_client(self) -> None:
+        """Resolve the current Admin-managed provider when needed."""
         try:
             from core.llm_provider import build_provider
             self._client = build_provider()
@@ -111,6 +115,8 @@ class QueryOrchestrator:
 
     def _run(self, query: str) -> OrchestrationResult:
         """Execute the v1 pipeline: language detection + translation."""
+        if self._client is None:
+            self._load_client()
         if self._client is None:
             logger.info(
                 "QueryOrchestrator: no OpenAI client — "
