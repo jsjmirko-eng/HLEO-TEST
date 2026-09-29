@@ -1,5 +1,11 @@
+import logging
 from typing import List
+
 import requests
+
+from core.logging_utils import query_fingerprint, redact_text
+
+logger = logging.getLogger(__name__)
 
 
 class SearXNGSearch:
@@ -8,8 +14,8 @@ class SearXNGSearch:
         self.base_url = base_url.rstrip("/")
 
     def search(self, query: str) -> List[str]:
-        print("SEARX CHIAMATO:", query)
-        
+        logger.info("SearXNG request for %s", query_fingerprint(query))
+
         url = f"{self.base_url}/search"
 
         params = {
@@ -23,7 +29,10 @@ class SearXNGSearch:
             if response.status_code != 200:
                 return []
 
-            print(response.text)
+            logger.debug(
+                "SearXNG response status=%s bytes=%d",
+                response.status_code, len(response.content),
+            )
 
             if "application/json" not in response.headers.get("Content-Type", ""):
                 return []
@@ -36,10 +45,9 @@ class SearXNGSearch:
                 if "url" in result:
                     urls.append(result["url"])
 
-            print(urls)
+            logger.debug("SearXNG returned %d URLs", len(urls))
             return urls
 
         except Exception as e:
-            print("URL:", url)
-            print("ERRORE:", e)
+            logger.warning("SearXNG request failed for %s: %s", query_fingerprint(query), redact_text(e, max_length=160))
             raise

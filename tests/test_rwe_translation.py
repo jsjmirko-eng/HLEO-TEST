@@ -23,6 +23,7 @@ from core.rwe.openfda_collector import (
     sanitize_fda_term,
 )
 from core.rwe.translation import _validate, translate_for_rwe
+from core.vocab.entities import normalize_relation_connectors
 
 
 @pytest.fixture(autouse=True)
@@ -112,7 +113,9 @@ def test_deterministic_fallback_from_entities(monkeypatch):
                         lambda: object())
     res = translate_for_rwe(IT_QUERY, "it", client=client)
     assert res.method == "deterministic"
-    assert res.english_query == "isotretinoin joint pain stiffness"
+    assert res.english_query == normalize_relation_connectors(IT_QUERY)
+    assert "isotretinoina" in res.english_query
+    assert "after using" in res.english_query
 
 
 def test_deterministic_fallback_preserves_relation(monkeypatch):
@@ -129,6 +132,44 @@ def test_deterministic_fallback_preserves_relation(monkeypatch):
     from core.rwe.translation import _deterministic_fallback
     assert _deterministic_fallback("caduta indotta da dutasteride", "it") \
         == "hair loss induced by dutasteride"
+
+
+def test_deterministic_fallback_resolver_none_preserves_original(monkeypatch):
+    from core.rwe.translation import _deterministic_fallback
+
+    query = "mal di testa dopo aver assunto finasteride"
+    monkeypatch.setattr("core.vocab.resolver.build_resolver_from_env", lambda: None)
+
+    assert _deterministic_fallback(query, "it") == query
+
+
+def test_deterministic_fallback_exception_preserves_original(monkeypatch):
+    from core.rwe.translation import _deterministic_fallback
+
+    query = "mal di testa dopo aver assunto finasteride"
+
+    def raise_resolver_error():
+        raise RuntimeError("resolver unavailable")
+
+    monkeypatch.setattr(
+        "core.vocab.resolver.build_resolver_from_env",
+        raise_resolver_error,
+    )
+
+    assert _deterministic_fallback(query, "it") == query
+
+
+def test_deterministic_fallback_without_entities_preserves_relation(monkeypatch):
+    from core.rwe.translation import _deterministic_fallback
+
+    query = "sintomo non riconosciuto dopo aver assunto farmaco sconosciuto"
+    monkeypatch.setattr("core.vocab.resolver.build_resolver_from_env", lambda: object())
+    monkeypatch.setattr(
+        "core.vocab.entities.recognize",
+        lambda *args, **kwargs: SimpleNamespace(surfaces={}),
+    )
+
+    assert _deterministic_fallback(query, "it") == normalize_relation_connectors(query)
 
 
 def test_total_failure_returns_original_marked_none(monkeypatch):

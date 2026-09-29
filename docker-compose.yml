@@ -28,6 +28,9 @@ services:
       - .:/app
     env_file:
       - .env
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
     depends_on:
       db:
         condition: service_healthy

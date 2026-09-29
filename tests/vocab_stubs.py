@@ -44,6 +44,8 @@ class FakeMatch:
 class FakeResolution:
     def __init__(self, matches):
         self.matches = list(matches)
+        self.providers_queried = sorted({match.provider for match in self.matches})
+        self.providers_failed = []
 
 
 class FakeResolver:

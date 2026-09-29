@@ -812,6 +812,8 @@ class RWEQueryEngine:
         anchor_tokens = re.findall(r"[\w']+", (source_entity or "").lower())
         if not candidate_tokens or not anchor_tokens:
             return False
+        if "-" in candidate and len(candidate_tokens) > len(anchor_tokens):
+            return False
 
         # A variant must retain the complete source phrase, not just a generic
         # token shared with unrelated concepts (e.g. hair → Hair Analysis).
@@ -841,6 +843,12 @@ class RWEQueryEngine:
         relational = contains_relation_connector(query) or bool(
             re.search(r"\b(?:cause|causes|caused|effect|effects|side)\b", query)
         )
+        if relational:
+            # A relational query must remain anchored to the entity supplied
+            # by the user. Provider aliases and unrelated added concepts would
+            # otherwise change the role of the entity in the relation.
+            if not retains_anchor:
+                return False
         if etype in {"condition", "symptom"} and relational:
             # In an exposure relation, a condition variant must keep the event
             # phrase present in the candidate instead of expanding generic terms.
@@ -849,12 +857,7 @@ class RWEQueryEngine:
             keeps_event_context = bool(
                 (set(meaningful) - anchor_set) & query_tokens
             ) or set(meaningful).issubset(query_tokens)
-            is_provider_synonym = (
-                not retains_anchor
-                and len(anchor_tokens) > 1
-                and len(candidate_tokens) == 1
-            )
-            if not keeps_event_context and not is_provider_synonym:
+            if not keeps_event_context:
                 return False
 
         return True

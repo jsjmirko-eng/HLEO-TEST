@@ -23,6 +23,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
+from core.logging_utils import query_fingerprint, redact_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -104,7 +106,7 @@ class QueryOrchestrator:
 
         cache_key = hashlib.md5(q.encode()).hexdigest()
         if cache_key in self._cache:
-            logger.debug(f"QueryOrchestrator cache hit: '{q[:50]}'")
+            logger.debug("QueryOrchestrator cache hit: %s", query_fingerprint(q))
             return self._cache[cache_key]
 
         result = self._run(q)
@@ -128,8 +130,9 @@ class QueryOrchestrator:
             lang, english_query = self._detect_and_translate(query)
         except Exception as exc:
             logger.warning(
-                f"QueryOrchestrator: detect/translate failed ({exc}) — "
-                "falling back to original query."
+                "QueryOrchestrator: detect/translate failed (%s) for %s — "
+                "falling back to original query.",
+                redact_text(exc, max_length=160), query_fingerprint(query),
             )
             return self._passthrough(query, "und")
 
@@ -138,8 +141,8 @@ class QueryOrchestrator:
             return self._passthrough(query, lang if lang else "en")
 
         logger.info(
-            f"QueryOrchestrator: [{lang.upper()}] '{query[:60]}' "
-            f"→ [EN] '{english_query[:60]}'"
+            "QueryOrchestrator: [%s] %s → [EN] %s",
+            lang.upper(), query_fingerprint(query), query_fingerprint(english_query),
         )
         return OrchestrationResult(
             original_query=query,

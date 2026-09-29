@@ -17,7 +17,6 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
 from core.vocab.models import VocabularyResolution
@@ -179,13 +178,9 @@ def _match_surface_compatible(surface: str, match) -> bool:
         return True
 
     surface_tokens = surface_norm.split()
-    generic_tokens = {"hair", "capelli", "skin", "cutaneous", "clinical"}
     for term_norm in evidence_norm:
         term_tokens = set(term_norm.split())
-        if len(surface_tokens) == 1 and SequenceMatcher(
-                None, surface_norm, term_norm).ratio() >= 0.85:
-            return True
-        if set(surface_tokens) & term_tokens - generic_tokens:
+        if set(surface_tokens) & term_tokens:
             return True
     return False
 
@@ -222,18 +217,46 @@ def recognize(
                 continue
             if match.match_kind not in _ENTITY_MATCH_KINDS:
                 continue
-            if (
+            explicit_evidence = {
+                _normalise_surface(term)
+                for term in [match.preferred_term, *(match.synonyms or [])]
+                if term
+            }
+            source_term = (match.metadata or {}).get("source_term")
+            if source_term:
+                explicit_evidence.add(_normalise_surface(source_term))
+            candidate_norm = _normalise_surface(candidate)
+            evidence_tokens = {
+                token
+                for term in explicit_evidence
+                for token in term.split()
+            }
+            candidate_tokens = set(candidate_norm.split())
+            meaningful_overlap = bool(candidate_tokens & evidence_tokens)
+            if match.match_kind == "normalized":
+                plural_evidence = candidate_norm + "s"
+                if (
+                    candidate_norm not in explicit_evidence
+                    and plural_evidence not in explicit_evidence
+                    and not meaningful_overlap
+                ):
+                    continue
+            elif (
                 match.match_kind not in {"exact", "translation", "colloquial"}
-                and not (
-                    match.match_kind == "normalized"
-                    and match.provider == "rxnorm"
-                )
                 and not _match_surface_compatible(candidate, match)
             ):
                 continue
             canonical = (match.preferred_term or "").strip().lower()
             if not canonical:
                 continue
+            if (
+                match.match_kind == "normalized"
+                and candidate_norm not in explicit_evidence
+                and not meaningful_overlap
+            ):
+                # A provider-normalized hit without explicit or lexical
+                # evidence must not rewrite the user's term to another concept.
+                canonical = candidate.strip().lower()
             if canonical not in best or match.confidence > best[canonical][2]:
                 best[canonical] = (etype, canonical, match.confidence)
                 result.surfaces[canonical] = candidate

@@ -12,15 +12,15 @@ Pipeline
       → (1) ClinicalRelation extraction        [1 LLM call, cached]
       → (2) per-source structured query build   [no LLM]
       → (3) retrieval via existing collectors   [PubMed/EuropePMC/ClinicalTrials]
-      → (4) hard filter (agent + manifestation co-occurrence, synonym-tolerant)
-      → (5) clinical_rank pre-sort              [deterministic, no LLM]
-      → (6) LLM relational judge on top-N pool  [batched, ~2 calls/source]
-      → (7) final re-rank by judge score        [no LLM]
+      → (4) clinical_rank pre-sort              [deterministic, no LLM]
+      → (5) LLM relational judge on top-N pool  [batched, ~2 calls/source]
+      → (6) final re-rank by judge score        [no LLM]
 
 Design notes
 ------------
-- NO hardcoded clinical combinations: the LLM generates agent/manifestation
-  search_terms, relation_type and relation_phrases per query.
+- ClinicalRelation is the sole semantic authority. Query generation uses only
+  the relation extracted from the user request; terminology providers are not
+  consulted by this chain.
 - Fallback: if OPENAI_API_KEY is missing, or relation extraction / judge fail
   (incl. 429), the caller falls back to the existing keyword pipeline. This
   module never raises for those conditions — it returns None / degraded
@@ -35,7 +35,6 @@ Design notes
 from __future__ import annotations
 
 import collections
-import copy
 import json
 import logging
 import re
@@ -46,11 +45,12 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from aggregator import HLEOAggregator
-from core.vocab.models import MATCH_TIERS
 
 from collectors.pubmed import PubMedCollector
 from collectors.europepmc import EuropePMCCollector
 from collectors.clinicaltrials import ClinicalTrialsCollector
+from collectors.scientific_registry import NEW_SCIENTIFIC_COLLECTORS
+from core.search_page import collect_search_pages
 from core.search_result import SearchResult
 
 logger = logging.getLogger(__name__)
@@ -79,16 +79,17 @@ def _limits():
 class ClinicalRelation:
     """Structured clinical relationship extracted from the user query."""
     original_query: str
-    agent: dict = field(default_factory=dict)           # {term,normalized,role,identified,search_terms}
+    agent: dict = field(default_factory=dict)           # {term,normalized,role,identified}
     event: dict = field(default_factory=dict)           # {term,normalized}
-    manifestation: dict = field(default_factory=dict)   # {term,normalized,role,search_terms}
+    manifestation: dict = field(default_factory=dict)   # {term,normalized,role,site}
+    anatomical_site: dict = field(default_factory=dict)  # backwards-compatible site view
+    formulation: dict = field(default_factory=dict)      # {term,normalized}
     temporal: str = ""
     relation_type: str = "unknown"
     scientific_query: str = ""
     relation_phrases: list = field(default_factory=list)
     fallback_needed: bool = False
     canonical_query: str = ""
-    vocabulary: dict = field(default_factory=dict)
     expanded_queries: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -97,13 +98,14 @@ class ClinicalRelation:
             "agent": self.agent,
             "event": self.event,
             "manifestation": self.manifestation,
+            "anatomical_site": self.anatomical_site,
+            "formulation": self.formulation,
             "temporal": self.temporal,
             "relation_type": self.relation_type,
             "scientific_query": self.scientific_query,
             "relation_phrases": self.relation_phrases,
             "fallback_needed": self.fallback_needed,
             "canonical_query": self.canonical_query,
-            "vocabulary": self.vocabulary,
             "expanded_queries": self.expanded_queries,
         }
 
@@ -121,10 +123,11 @@ procedure, device, or generic/unspecified.
 Return ONLY a JSON object (no markdown, no commentary) with this schema:
 {
   "query_original": str,
-  "agent": {"term": str, "normalized": str, "role": str, "identified": bool, "search_terms": [str]},
+  "agent": {"term": str, "normalized": str, "role": str, "identified": bool},
   "event": {"term": str, "normalized": str},
-  "manifestation": {"term": str, "normalized": str, "role": str, "search_terms": [str],
-                    "site": {"term": str, "normalized": str, "search_terms": [str]}},
+  "manifestation": {"term": str, "normalized": str, "role": str,
+                    "site": {"term": str, "normalized": str}},
+  "formulation": {"term": str, "normalized": str},
   "temporal": str,
   "relation_type": str,
   "scientific_query": str,
@@ -133,26 +136,18 @@ Return ONLY a JSON object (no markdown, no commentary) with this schema:
 }
 
 EVENT/MANIFESTATION SEMANTIC RULE (mandatory):
-- event.normalized MUST be the complete clinical event, including any modifier
-  that directly changes the manifestation: increased hair loss, worsening hair
-  loss, aggravated headache, severe skin rash.
-- manifestation.normalized MUST be the underlying clinical condition or event,
-  without its modifier: hair loss, headache, skin rash.
-- manifestation.search_terms MUST contain synonyms of the underlying
-  manifestation, not synonyms of the modifier alone.
-- If the query names an anatomical/site qualifier (for example "attaccatura
-  dei capelli", "hairline", "frontal scalp"), preserve it only as
-  manifestation.site={"term": ..., "normalized": ..., "search_terms": [...]}
-  nested under the same manifestation. The manifestation itself MUST remain
-  the clinical event/condition and MUST NOT be replaced by the site.
-- Omit manifestation.site when the query has no explicit site. Never invent a
-  site from generic words such as "hair" or "capelli".
-- Never split a modifier from the manifestation by putting the modifier alone
-  in manifestation. For the exact query "caduta aumentata da inizio terapia
-  finasteride", the required structure is:
-  event.normalized = "increased hair loss"
-  manifestation.normalized = "hair loss"
-  manifestation.search_terms = ["hair loss", "hair shedding", "alopecia"]
+- Preserve the clinical event, manifestation, site, formulation, temporal
+  qualifier and relation expressed by the user. Do not add facts or terms that
+  are absent from the request.
+- event.normalized MUST describe the complete event when a modifier changes
+  the manifestation; manifestation.normalized MUST remain the underlying event.
+- If the query names an anatomical site, preserve it as manifestation.site
+  nested under the same manifestation. Do not replace the manifestation with
+  its site.
+- Omit manifestation.site when the user did not specify a site.
+- Preserve an explicit formulation or route in the formulation field and in
+  scientific_query when it is part of the request.
+- Do not create synonym, alias, related-concept or equivalent-term lists.
 
 relation_type STRICT ENUM (choose one):
 - adverse_effect   : a DRUG/CHEMICAL/PROCEDURE may CAUSE/TRIGGER the manifestation (harm after/with the agent).
@@ -170,36 +165,21 @@ ROUTING (apply in order):
 3. drug/chemical/procedure followed by a harmful manifestation the user suspects caused -> adverse_effect.
 Never default all negatives to adverse_effect.
 
-search_terms: provide 2-5 English synonyms/variants for SEARCHING (INN for drugs; scientific
-terms for manifestations, e.g. erythema, "skin irritation", "cutaneous irritation", dermatitis).
-These are used to match articles by synonym, so include clinically equivalent terms.
+scientific_query: express the same relation in concise scientific English. Preserve every
+explicit semantic component of the user's request, including the named agent, manifestation,
+site, formulation, temporal qualifier and relation. Do not add synonyms, aliases, related
+concepts, alternative terms, causal cues or recovery concepts that the user did not express.
+Do not build OR groups or substitute a provider concept for the user's wording.
 
-scientific_query: REQUIRE the agent AND manifestation to co-occur, joined with AND. For
-adverse_effect append a causal group using ONLY: "adverse effect","side effect",induced,
-"caused by","triggered by","secondary to","drug-related","treatment-related",worsening.
-When the query describes an adverse event followed by recovery, regrowth, or reversibility,
-the scientific_query MUST represent the sequence explicitly as:
-agent AND initial hair shedding AND subsequent hair regrowth
-For the exact query "caduta indotta da dutasteride, poi si recupera?", return exactly:
-"dutasteride AND initial hair shedding AND subsequent hair regrowth"
-Do not replace this sequence with only a generic adverse-effect group. Do not invent additional
-clinical facts beyond the recovery/regrowth expressed by the query. When the query explicitly
-asks whether recovery follows the event, set temporal to "subsequent recovery"; for the exact
-query above, temporal MUST be "subsequent recovery". DO NOT use bare "effect" alone, and DO NOT
-use "following" or "associated with" as mandatory terms (they are too generic).
-For efficacy: (treatment OR efficacy OR therapeutic OR "response to"). For exposure_outcome:
-(following OR "due to" OR injury OR caused). English, parentheses + OR groups.
-
-relation_phrases: 3-6 diverse natural scientific phrases expressing THIS specific relation
-(vary grammar: induced / associated with / following / secondary to / adverse reaction to).
+relation_phrases: optional short paraphrases of the same relation for the Judge only. They must
+not introduce any new clinical concept and must never be used to create retrieval queries.
 
 VAGUE-AGENT HANDLING: if the agent is not specifically named (e.g. "un nuovo farmaco"):
 agent.identified=false, agent.role="generic_unspecified", agent.normalized="" (do NOT invent a
 name), fallback_needed=true.
 
-Normalize: drugs->INN; Italian lay terms -> scientific English (rossore->erythema/"skin irritation";
-caduta dei capelli->"hair shedding"/"hair loss"; dolore articolare->arthralgia; mal di testa->headache;
-ginocchio->knee; esposizione al sole->"sun exposure"; eritema->erythema).
+Normalize terminology only when required to express the user's meaning in
+scientific English. Do not use a fixed translation table or add alternative terms.
 
 Query: __QUERY__"""
 
@@ -208,26 +188,44 @@ Query: __QUERY__"""
 
 _JUDGE_PROMPT = """You are a strict biomedical relevance judge.
 
-The user is asking about this CLINICAL RELATION:
+The original user question is:
+  {original_query}
+
+The structured CLINICAL RELATION extracted from it is:
   agent: {agent} ({arole})
   event: {event}
   manifestation: {manifest} ({mrole})
+  manifestation site: {site}
+  formulation: {formulation}
   temporal: {temporal}
   relation_type: {rtype}
+  scientific query: {scientific_query}
+  relation phrases: {relation_phrases}
   relation description: {desc}
 
-For EACH article below, decide whether it substantively discusses THIS RELATIONSHIP
-(the agent causing/being associated with the manifestation as an adverse effect / exposure
-outcome, or the agent treating the condition if efficacy), versus merely mentioning the
-words separately or discussing a different topic.
+Judge the meaning of the original question, not isolated keyword overlap. Direct evidence
+must address the agent, manifestation, relation and any temporal qualifier that the user
+actually expressed. Do not require a literal phrase when the article expresses the same
+meaning in different wording.
 
-Assign:
-  label: "relevant" | "partial" | "not_relevant"
-  score: 0.0-1.0  (1.0 = the relation is a central focus; 0.5 = both terms present but
-                   relation not the focus; 0.0 = no real relation)
-  reason: one short sentence
+Assign exactly one semantic tier for EACH article:
+  A = directly pertinent: the requested agent/manifestation relationship is central,
+      including the temporal or recovery aspect when the article addresses it.
+  B = pertinent but incomplete: the agent and manifestation relationship is relevant,
+      but an important element (for example recovery, timing, or causality) is absent
+      or only indirect.
+  C = useful contextual evidence: clinically related background or general condition
+      evidence, but not evidence of the requested relationship itself.
+  D = not pertinent: unrelated or only accidental word co-occurrence.
 
-Return ONLY JSON: {{"results":[{{"i":int,"label":str,"score":float,"reason":str}}]}}
+Also return a normalized label for compatibility:
+  A -> relevant, B -> partial, C -> contextual, D -> not_relevant.
+
+The numeric score is explanatory only: use 0.0-1.0 for semantic confidence and do
+not use it to override the tier. Give one short reason grounded in the article.
+
+Return ONLY JSON:
+{{"results":[{{"i":int,"tier":"A|B|C|D","label":str,"score":float,"reason":str}}]}}
 
 Articles:
 {arts}"""
@@ -278,6 +276,10 @@ class RelationalSearch:
         self.pubmed = PubMedCollector()
         self.europepmc = EuropePMCCollector()
         self.clinicaltrials = ClinicalTrialsCollector()
+        self._new_collectors = {
+            source: collector()
+            for source, collector in NEW_SCIENTIFIC_COLLECTORS.items()
+        }
         # Per-source semaphores: limit concurrent HTTP tasks per source to
         # avoid violating each API's rate limit, even when collector_max_workers
         # would allow more parallel tasks overall.
@@ -286,7 +288,21 @@ class RelationalSearch:
             "pubmed":        threading.Semaphore(lim.pubmed_max_concurrent),
             "europepmc":     threading.Semaphore(lim.epmc_max_concurrent),
             "clinicaltrials": threading.Semaphore(lim.ct_max_concurrent),
+            **{
+                source: threading.Semaphore(1)
+                for source in NEW_SCIENTIFIC_COLLECTORS
+            },
         }
+
+    def _scientific_collectors(self) -> dict:
+        collectors = {
+            "pubmed": (self.pubmed, self._build_pubmed_query),
+            "europepmc": (self.europepmc, self._build_epmc_query),
+            "clinicaltrials": (self.clinicaltrials, self._build_ct_query),
+        }
+        for source, collector in getattr(self, "_new_collectors", {}).items():
+            collectors[source] = (collector, self._build_scientific_query)
+        return collectors
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -295,9 +311,15 @@ class RelationalSearch:
         if self._client is None:
             return None
         t0 = time.perf_counter()
+        source_names = list(self._scientific_collectors())
         stats: dict[str, Any] = {
             "openai_calls": 0, "judge_errors": [], "judge_used": True,
-            "vocab_enabled": False, "query_calls": 0,
+            "query_calls": 0,
+            "collector_requests": {source: [] for source in source_names},
+            "collector_errors": [],
+            "judge_evaluated": 0,
+            "judge_invalid": 0,
+            "judge_tiers": {"A": 0, "B": 0, "C": 0, "D": 0},
         }
         rel = self._extract_relation(raw_query)
         stats["openai_calls"] += 1
@@ -306,14 +328,10 @@ class RelationalSearch:
 
         expanded = self._expand_relation(rel, raw_query)
         rel.expanded_queries = [provenance for _variant, provenance in expanded]
-        stats["vocab_enabled"] = bool(rel.vocabulary)
         stats["expanded_queries"] = len(expanded)
-        raw: dict[str, list] = {"pubmed": [], "europepmc": [], "clinicaltrials": []}
-        collectors = {
-            "pubmed": (self.pubmed, self._build_pubmed_query),
-            "europepmc": (self.europepmc, self._build_epmc_query),
-            "clinicaltrials": (self.clinicaltrials, self._build_ct_query),
-        }
+        stats["semantic_query_count"] = len(expanded)
+        collectors = self._scientific_collectors()
+        raw: dict[str, list] = {source: [] for source in collectors}
 
         # ── Parallel bounded retrieval ────────────────────────────────────────
         # Build one task per (variant, source) pair — independent HTTP calls.
@@ -332,6 +350,10 @@ class RelationalSearch:
                 "pubmed":         threading.Semaphore(lim_now.pubmed_max_concurrent),
                 "europepmc":      threading.Semaphore(lim_now.epmc_max_concurrent),
                 "clinicaltrials": threading.Semaphore(lim_now.ct_max_concurrent),
+                **{
+                    source: threading.Semaphore(1)
+                    for source in getattr(self, "_new_collectors", {})
+                },
             }
 
         def _collect_one(
@@ -339,32 +361,39 @@ class RelationalSearch:
             collector,
             query: str,
             provenance: str,
-        ) -> tuple[str, str, str, list]:
-            """Return (source, provenance, query, items). Never raises.
+        ) -> tuple[str, str, str, list, str]:
+            """Return (source, provenance, query, items, error). Never raises.
 
             Acquires the per-source semaphore before starting HTTP calls so
             that concurrent tasks for the same source stay within the
             configured rate-limit budget (pubmed_max_concurrent etc.), even
-            when collector_max_workers allows more total parallel tasks.
+            when collector_max_workers allows more total tasks.
             """
             sem = source_sems.get(source)
             with sem:
                 try:
-                    items = collector.search(query, limit=None)
-                    return source, provenance, query, items
+                    items = collect_search_pages(collector, query, limit=None)
+                    return source, provenance, query, items, ""
                 except Exception as exc:
+                    error = f"{type(exc).__name__}: {exc}"
                     logger.warning(
                         "Scientific %s retrieval failed (query=%r): %s",
                         source, query, exc,
                     )
-                    return source, provenance, query, []
+                    return source, provenance, query, [], error
 
         max_workers = _limits().collector_max_workers
-        tasks = [
-            (source, collector, builder(variant), provenance)
-            for variant, provenance in expanded
-            for source, (collector, builder) in collectors.items()
-        ]
+        tasks = []
+        seen_tasks = set()
+        for variant, provenance in expanded:
+            for source, (collector, builder) in collectors.items():
+                query = builder(variant)
+                task_key = (source, query)
+                if task_key in seen_tasks:
+                    continue
+                seen_tasks.add(task_key)
+                tasks.append((source, collector, query, provenance))
+        stats["collector_task_count"] = len(tasks)
 
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = {
@@ -374,7 +403,16 @@ class RelationalSearch:
                 for source, collector, query, provenance in tasks
             }
             for fut in as_completed(futures):
-                source, provenance, query, items = fut.result()
+                source, provenance, query, items, error = fut.result()
+                stats["collector_requests"][source].append({
+                    "query": query,
+                    "raw_results": len(items),
+                    "error": error,
+                })
+                if error:
+                    stats["collector_errors"].append({
+                        "source": source, "query": query, "error": error,
+                    })
                 if items:
                     stats["query_calls"] += 1
                 for item in items:
@@ -384,66 +422,103 @@ class RelationalSearch:
                     raw[source].append(item)
 
         stats["candidates_raw"] = {k: len(v) for k, v in raw.items()}
+        stats["candidates_raw_total"] = sum(stats["candidates_raw"].values())
         candidates = self._deduplicate_scientific(raw)
         stats["candidates_deduped"] = len(candidates)
+        from core.content_search_experiment import experiment_enabled, run_content_search
+        if experiment_enabled():
+            stats["content_search"] = run_content_search(candidates, rel)
         grouped = self._split_scientific(candidates)
         candidates = [item for items in grouped.values() for item in items]
         stats["after_soft_relation_pass"] = len(candidates)
         stats["after_hard_filter"] = len(candidates)
         stats["hard_filter_applied"] = False
+        stats["funnel"] = {
+            "raw": stats["candidates_raw_total"],
+            "dedup": stats["candidates_deduped"],
+            "soft": len(candidates),
+            "hard": len(candidates),
+        }
 
         from core.ranker import clinical_rank
-        candidates.sort(
-            key=lambda item: clinical_rank(item) + (self._relation_bonus(item, rel)[0] * 100.0),
-            reverse=True,
-        )
+        tier_order = {"A": 3, "B": 2, "C": 1, "D": 0}
+        candidates.sort(key=clinical_rank, reverse=True)
         judged_count = 0
         remaining = candidates
         while remaining and judged_count < len(candidates) and judged_count < 400:
             pool = remaining[:300]
             judgements = self._judge_batched(pool, rel, stats)
+            stats["judge_evaluated"] += len(pool)
             for item, judgement in zip(pool, judgements):
-                raw_score = max(0.0, min(1.0, float(judgement.get("score", 0.0))))
-                relation_bonus, relation_reasons = self._relation_bonus(item, rel)
-                final_score = min(1.0, max(0.0, raw_score + relation_bonus))
-                # final_score * 1000 dominates (judge ordering wins);
-                # relation_bonus * 50 breaks ties in favour of relation-specific
-                # articles; clinical_rank * 0.5 is the last tie-break.
-                item.score = round(
-                    final_score * 1000.0 + (relation_bonus * 50.0)
-                    + (clinical_rank(item) * 0.5), 2)
                 item.metadata = dict(item.metadata or {})
+                if not judgement.get("valid", False):
+                    stats["judge_invalid"] += 1
+                    item.metadata.update({
+                        "judge_status": "invalid",
+                        "semantic_tier": "INVALID",
+                        "relevance_label": None,
+                        "relevance_score": None,
+                        "relevance_reason": judgement.get("reason", "invalid judge decision"),
+                        "final_score": None,
+                        "judge_score_raw": None,
+                    })
+                    item.score = clinical_rank(item)
+                    continue
+
+                raw_score = judgement["score"]
+                tier = judgement["tier"]
+                stats["judge_tiers"][tier] += 1
                 item.metadata.update({
-                    "relevance_label": judgement.get("label", "not_relevant"),
-                    "relevance_score": final_score,
-                    "relevance_reason": judgement.get("reason", ""),
-                    "final_score": final_score,
+                    "judge_status": "valid",
+                    "semantic_tier": tier,
+                    "relevance_label": judgement["label"],
+                    "relevance_score": raw_score,
+                    "relevance_reason": judgement["reason"],
+                    "final_score": raw_score,
                     "judge_score_raw": raw_score,
-                    "relation_bonus": relation_bonus,
-                    "relation_reasons": relation_reasons,
                 })
+                # Tier is the semantic decision. Numeric confidence and source
+                # quality only order articles within the same tier.
+                item.score = round(
+                    tier_order[tier] * 1_000_000.0
+                    + raw_score * 1_000.0
+                    + clinical_rank(item), 2)
             judged_count += len(pool)
             remaining = candidates[judged_count:]
-            ranked_now = sorted(candidates[:judged_count], key=lambda item: item.score,
-                                reverse=True)
-            if sum(float((item.metadata or {}).get("final_score", 0.0)) >= 0.20
-                   for item in ranked_now) >= 400 or not remaining:
+            if not remaining:
                 break
+        stats["funnel"]["judge"] = stats["judge_evaluated"]
         candidates.sort(key=lambda item: item.score, reverse=True)
         final = [item for item in candidates
-                 if float((item.metadata or {}).get("final_score", 0.0)) >= 0.20][:400]
-        out = {"pubmed": [], "europepmc": [], "clinicaltrials": [], "reddit": []}
+                 if (item.metadata or {}).get("semantic_tier") in {"A", "B", "C"}][:400]
+        stats["funnel"]["final"] = len(final)
+        stats["funnel"]["excluded_by_judge"] = len(candidates) - len(final)
+        out = {source: [] for source in source_names}
+        out["reddit"] = []
         for item in final:
             key = self._source_key(item)
-            if key:
+            if key in out:
                 out[key].append(item)
         stats["judge_pool"] = judged_count
         stats["final_count"] = len(final)
-        stats["final"] = {k: len(out[k]) for k in ("pubmed", "europepmc", "clinicaltrials")}
+        stats["final"] = {k: len(out[k]) for k in source_names}
         stats["elapsed_s"] = round(time.perf_counter() - t0, 2)
         return {**out, "relation": rel, "stats": stats}
 
     # ── (1) Relation extraction ──────────────────────────────────────────────
+
+    @staticmethod
+    def _clean_relation_part(value: Any, fields: tuple[str, ...], nested_site: bool = False) -> dict:
+        if not isinstance(value, dict):
+            return {}
+        cleaned = {field: value[field] for field in fields if field in value}
+        if nested_site and isinstance(value.get("site"), dict):
+            cleaned["site"] = {
+                field: value["site"][field]
+                for field in ("term", "normalized")
+                if field in value["site"]
+            }
+        return cleaned
 
     @staticmethod
     def _replace_term(text: str, old: str, new: str) -> str:
@@ -452,176 +527,59 @@ class RelationalSearch:
         return re.sub(rf"(?<!\w){re.escape(old)}(?!\w)", new, text,
                       count=1, flags=re.IGNORECASE)
 
-    @staticmethod
-    def _variant_relation(
-        rel: ClinicalRelation,
-        agent: str,
-        manifestation: str,
-        manifestation_terms: Optional[list[str]] = None,
-    ) -> ClinicalRelation:
-        variant = copy.deepcopy(rel)
-        variant.agent = dict(variant.agent)
-        variant.manifestation = dict(variant.manifestation)
-        variant.agent["normalized"] = agent
-        variant.agent["search_terms"] = [agent]
-        variant.manifestation["normalized"] = manifestation
-        variant.manifestation["search_terms"] = list(
-            manifestation_terms or [manifestation]
-        )
-        return variant
-
-    @staticmethod
-    def _vocabulary_variant_allowed(
-        source_entity: str,
-        candidate: str,
-        match,
-        relation: ClinicalRelation,
-        side: str,
-    ) -> bool:
-        """Keep provider variants compatible with the extracted relation side."""
-        source_tokens = set(re.findall(r"[\w']+", source_entity.lower()))
-        candidate_tokens = set(re.findall(r"[\w']+", candidate.lower()))
-        if not source_tokens or not candidate_tokens:
-            return False
-        expected_role = (
-            (relation.agent or {}).get("role") if side == "agent"
-            else (relation.manifestation or {}).get("role")
-        )
-        expected_groups = {
-            "drug": {"drug"},
-            "condition": {"condition", "symptom"},
-            "symptom": {"condition", "symptom"},
-            "adverse_effect": {"condition", "symptom"},
-            "outcome": {"condition", "symptom"},
-        }.get(expected_role)
-        if expected_groups is not None and match.semantic_group not in expected_groups:
-            return False
-
-        # Exact and explicit alias matches may replace the surface. Related
-        # concepts must retain the lexical anchor to avoid semantic drift.
-        alias_kinds = {"exact", "synonym", "translation", "normalized", "colloquial"}
-        if match.match_kind not in alias_kinds and not source_tokens.issubset(candidate_tokens):
-            return False
-        return True
-
     def _expand_relation(self, rel: ClinicalRelation, original_query: str):
-        """Resolve typed vocabulary and generate anchored search queries."""
+        """Return the single semantic query produced by ClinicalRelation."""
         agent = (rel.agent.get("normalized") or rel.agent.get("term") or "").strip()
         manifestation = (rel.manifestation.get("normalized") or rel.manifestation.get("term") or "").strip()
-        manifestation_terms = list(dict.fromkeys(
-            str(term).strip()
-            for term in (rel.manifestation.get("search_terms") or [manifestation])
-            if str(term).strip()
-        ))
         base = rel.scientific_query or " ".join(x for x in (agent, manifestation) if x)
-        rel.canonical_query = base
-        resolutions = {}
-        from core.vocab.resolver import build_resolver_from_env
-        resolver = build_resolver_from_env()
-        if resolver is not None:
-            resolutions = resolver.resolve_terms(list(dict.fromkeys(
-                x for x in (agent, manifestation) if len(x) >= 3
-            )), language="en")
-            rel.vocabulary = {
-                term: [m.model_dump() for m in result.matches]
-                for term, result in resolutions.items() if result.matches
-            }
+        if not rel.canonical_query:
+            rel.canonical_query = base
 
-        variants = []
-        original_agent = str(rel.agent.get("term") or "").strip()
-        original_manifestation = str(rel.manifestation.get("term") or "").strip()
-        if original_agent and original_agent.lower() != agent.lower():
-            variants.append((original_agent, original_manifestation or manifestation, {
-                "query": f"{original_agent} {original_manifestation or manifestation}".strip(),
-                "original_term": original_query, "expanded_term": original_agent,
-                "match_kind": "exact", "tier": 1.0, "provider": None,
-                "source_entity": original_agent, "query_origin": "user",
-            }))
-        variants.append((agent, manifestation, {
-            "query": base, "original_term": original_query,
-            "expanded_term": base, "match_kind": "canonical", "tier": 1.0,
-            "provider": None, "source_entity": None, "query_origin": "canonicalization",
-        }))
-        if original_query.strip().lower() != base.lower():
-            variants.insert(0, (agent, manifestation, {
-                "query": base, "original_term": original_query,
-                "expanded_term": base, "match_kind": "translation", "tier": 0.85,
-                "provider": None, "source_entity": None, "query_origin": "translation",
-            }))
-        for source_entity, side in ((agent, "agent"), (manifestation, "manifestation")):
-            resolution = resolutions.get(source_entity)
-            if resolution is None:
-                continue
-            for match in resolution.matches:
-                tier = MATCH_TIERS.get(match.match_kind)
-                if tier is None:
-                    continue
-                for term in [match.preferred_term, *match.synonyms]:
-                    term = (term or "").strip()
-                    if len(term) < 3 or term.lower() == source_entity.lower():
-                        continue
-                    if not self._vocabulary_variant_allowed(
-                        source_entity, term, match, rel, side
-                    ):
-                        continue
-                    a, m = agent, manifestation
-                    if side == "agent":
-                        a = term
-                    else:
-                        m = term
-                    variants.append((a, m, {
-                        "query": f"{a} {m}".strip(),
-                        "original_term": source_entity,
-                        "expanded_term": term,
-                        "match_kind": match.match_kind,
-                        "tier": tier, "provider": match.provider,
-                        "source_entity": source_entity, "query_origin": "vocabulary",
-                    }))
-
-        unique = []
-        seen = set()
-        for a, m, provenance in variants:
-            key = (a.lower(), m.lower())
-            if not key[0] and not key[1] or key in seen:
-                continue
-            seen.add(key)
-            variant = self._variant_relation(
-                rel, a, m, manifestation_terms=manifestation_terms
-            )
-            variant_query = rel.scientific_query
-            if a != agent and agent:
-                variant_query = variant_query.replace(agent, a, 1)
-            elif m != manifestation and m:
-                variant_query = f"{variant_query} AND {m}"
-            variant.scientific_query = variant_query
-            variant.canonical_query = variant_query
-            provenance = dict(provenance)
-            provenance["query"] = self._build_pubmed_query(variant)
-            provenance["source_language"] = "en"
-            provenance["matched_entities"] = [x for x in (a, m) if x]
-            unique.append((variant, provenance))
-            if len(unique) >= 16:
-                break
-        return unique
+        provenance = {
+            "query": self._build_pubmed_query(rel),
+            "original_term": original_query,
+            "expanded_term": base,
+            "match_kind": "translation" if original_query.strip().lower() != base.lower() else "canonical",
+            "tier": 0.85 if original_query.strip().lower() != base.lower() else 1.0,
+            "provider": None,
+            "source_entity": None,
+            "query_origin": "translation" if original_query.strip().lower() != base.lower() else "canonicalization",
+            "source_language": "en",
+            "matched_entities": [x for x in (agent, manifestation) if x],
+        }
+        return [(rel, provenance)]
 
     @staticmethod
     def _source_key(item) -> str:
-        source = str(getattr(item, "source", "")).lower().replace(" ", "")
-        if "pubmed" in source:
-            return "pubmed"
-        if "europepmc" in source or "europe" in source:
-            return "europepmc"
-        if "clinicaltrials" in source:
-            return "clinicaltrials"
+        source = re.sub(r"[^a-z0-9]", "", str(getattr(item, "source", "")).lower())
+        aliases = {
+            "pubmed": "pubmed",
+            "europepmc": "europepmc",
+            "europe": "europepmc",
+            "clinicaltrials": "clinicaltrials",
+            "openalex": "openalex",
+            "crossref": "crossref",
+            "doaj": "doaj",
+            "biorxiv": "biorxiv",
+            "medrxiv": "medrxiv",
+            "openaire": "openaire",
+            "hal": "hal",
+            "cinii": "cinii",
+            "jstage": "jstage",
+            "base": "base",
+        }
+        for marker, key in aliases.items():
+            if marker in source:
+                return key
         return ""
 
     @classmethod
     def _split_scientific(cls, items: list) -> dict:
-        out = {"pubmed": [], "europepmc": [], "clinicaltrials": []}
+        out = {}
         for item in items:
             key = cls._source_key(item)
             if key:
-                out[key].append(item)
+                out.setdefault(key, []).append(item)
         return out
 
     @staticmethod
@@ -643,11 +601,6 @@ class RelationalSearch:
                     val = str(side.get(key) or "").strip().lower()
                     if val:
                         target.append(val)
-                for key in ("search_terms",):
-                    for val in side.get(key) or []:
-                        sval = str(val or "").strip().lower()
-                        if sval:
-                            target.append(sval)
 
         agent_hits = _hits(agent_terms)
         if agent_hits:
@@ -664,40 +617,13 @@ class RelationalSearch:
             bonus += min(0.05, 0.02 * len(phrase_hits))
             reasons.append(f"phrase={phrase_hits[:2]}")
 
-        relation_cues = {
-            "adverse_effect": {
-                "adverse effect", "side effect", "safety", "tolerability",
-                "hypertrichosis", "shedding", "alopecia", "rash", "edema",
-                "irritation", "pustulosis", "exanthematous", "pruritus",
-            },
-            "efficacy": {
-                "efficacy", "effectiveness", "improve", "improvement",
-                "response", "regrowth", "regrew", "worked", "helped",
-                "treatment", "therapeutic", "benefit",
-            },
-            "comparison": {
-                "versus", "comparison", "compared", "compare", "network meta-analysis",
-                "head-to-head", "noninferiority", "randomized", "randomised",
-            },
-            "exposure_outcome": {
-                "following", "due to", "caused", "triggered", "after",
-                "secondary to", "resulted in",
-            },
-        }
-        cue_hits = _hits(list(relation_cues.get(relation_type, set())))
-        if cue_hits:
-            bonus += min(0.06, 0.02 * len(cue_hits))
-            reasons.append(f"relation={cue_hits[:3]}")
-
         if relation_type in {"adverse_effect", "efficacy", "comparison", "exposure_outcome"}:
             if agent_hits and manifest_hits:
                 bonus += 0.03
                 reasons.append("agent+relation")
 
-        # Relation-specificity: for an adverse-effect query, a paper whose text
-        # contains the exact normalized manifestation (e.g. "hypertrichosis",
-        # not a generic "shed") or one of the extracted relation phrases is
-        # more on-relation than a paper that merely matches the cue vocabulary.
+        # Relation-specificity: prefer articles containing the extracted
+        # manifestation or relation phrase over accidental co-occurrences.
         if relation_type == "adverse_effect":
             manifest_normalized = str(
                 (rel.manifestation or {}).get("normalized") or "").lower().strip()
@@ -718,8 +644,12 @@ class RelationalSearch:
     def _deduplicate_scientific(self, raw: dict) -> list:
         aggregator = HLEOAggregator()
         deduped, _stats = aggregator.deduplicate_across_sources(raw)
-        return [item for source in ("pubmed", "europepmc", "clinicaltrials")
-                for item in deduped.get(source, [])]
+        return [
+            item
+            for source in raw
+            if source != "reddit"
+            for item in deduped.get(source, [])
+        ]
 
 
     def _extract_relation(self, query: str) -> Optional[ClinicalRelation]:
@@ -732,11 +662,23 @@ class RelationalSearch:
         except Exception as exc:
             logger.warning("RelationalSearch: relation extraction failed — %s", exc)
             return None
+        manifestation = self._clean_relation_part(
+            data.get("manifestation"),
+            ("term", "normalized", "role"),
+            nested_site=True,
+        )
+        anatomical_site = manifestation.get("site", {}) or {}
         rel = ClinicalRelation(
             original_query=data.get("query_original", query),
-            agent=data.get("agent", {}) or {},
-            event=data.get("event", {}) or {},
-            manifestation=data.get("manifestation", {}) or {},
+            agent=self._clean_relation_part(
+                data.get("agent"), ("term", "normalized", "role", "identified")
+            ),
+            event=self._clean_relation_part(data.get("event"), ("term", "normalized")),
+            manifestation=manifestation,
+            anatomical_site=anatomical_site,
+            formulation=self._clean_relation_part(
+                data.get("formulation"), ("term", "normalized")
+            ),
             temporal=data.get("temporal", ""),
             relation_type=data.get("relation_type", "unknown"),
             scientific_query=data.get("scientific_query", ""),
@@ -751,59 +693,35 @@ class RelationalSearch:
     # ── (2) Per-source query builders ────────────────────────────────────────
 
     @staticmethod
-    def _or_group(terms: list[str]) -> str:
-        terms = [t for t in terms if t]
-        if not terms:
-            return ""
-        if len(terms) == 1:
-            return terms[0]
-        return "(" + " OR ".join(terms) + ")"
-
-    # Causal groups — tightened: no bare "effect", no "following"/"associated with" mandatory
-    _CAUSAL = {
-        "adverse_effect": '("adverse effect" OR "side effect" OR induced OR "caused by" OR "triggered by" OR "secondary to" OR "drug-related" OR "treatment-related" OR worsening)',
-        "efficacy": '(treatment OR efficacy OR therapeutic OR "response to")',
-        "exposure_outcome": '(following OR "due to" OR injury OR caused)',
-        "drug_condition": "",
-        "association": '("associated with" OR correlation OR linked)',
-        "unknown": "",
-        "diagnostic": "",
-        "prevention": '(prevention OR preventive OR prophylaxis)',
-    }
-
-    @staticmethod
-    def _temporal_query_term(rel: ClinicalRelation) -> str:
-        temporal = " ".join(str(rel.temporal or "").split())
-        return f'"{temporal}"' if temporal else ""
+    def _retrieval_query(rel: ClinicalRelation) -> str:
+        """Return the semantic query produced by the ClinicalRelation unchanged."""
+        return rel.scientific_query
 
     def _build_pubmed_query(self, rel: ClinicalRelation) -> str:
-        return rel.scientific_query
+        return self._retrieval_query(rel)
 
     def _build_epmc_query(self, rel: ClinicalRelation) -> str:
-        return rel.scientific_query
+        return self._retrieval_query(rel)
 
     def _build_ct_query(self, rel: ClinicalRelation) -> str:
-        return rel.scientific_query
+        return self._retrieval_query(rel)
 
-    # ── (4) Hard filter (synonym-tolerant) ────────────────────────────────────
+    def _build_scientific_query(self, rel: ClinicalRelation) -> str:
+        return self._retrieval_query(rel)
+
+    # ── (4) Hard filter (canonical relation terms only) ─────────────────────
 
     def _hard_filter(self, items: list[SearchResult], rel: ClinicalRelation) -> list[SearchResult]:
-        agent_terms = [t.lower() for t in (rel.agent.get("search_terms") or []) if t]
+        agent_terms = []
         if rel.agent.get("normalized"):
             agent_terms.append(rel.agent["normalized"].lower())
-        mani_terms = [t.lower() for t in (rel.manifestation.get("search_terms") or []) if t]
+        elif rel.agent.get("term"):
+            agent_terms.append(rel.agent["term"].lower())
+        mani_terms = []
         if rel.manifestation.get("normalized"):
             mani_terms.append(rel.manifestation["normalized"].lower())
-        for entity, target in ((rel.agent.get("normalized"), agent_terms),
-                               (rel.manifestation.get("normalized"), mani_terms)):
-            for entry in rel.vocabulary.get(entity, []):
-                if entry.get("match_kind") == "related_concept":
-                    continue
-                target.extend(
-                    str(term).lower() for term in
-                    [entry.get("preferred_term"), *(entry.get("synonyms") or [])]
-                    if term
-                )
+        elif rel.manifestation.get("term"):
+            mani_terms.append(rel.manifestation["term"].lower())
         agent_terms = list(dict.fromkeys(agent_terms))
         mani_terms = list(dict.fromkeys(mani_terms))
 
@@ -856,10 +774,48 @@ class RelationalSearch:
         # tail keeps its clinical_rank score (already set), ranked after pool
         return pool + tail
 
+    @staticmethod
+    def _invalid_judgement(reason: str) -> dict:
+        return {
+            "valid": False,
+            "tier": None,
+            "label": None,
+            "score": None,
+            "reason": reason,
+        }
+
+    @staticmethod
+    def _validate_judgement(judgement: object) -> dict:
+        if not isinstance(judgement, dict):
+            return RelationalSearch._invalid_judgement("judge result is not an object")
+
+        tier = str(judgement.get("tier", "")).strip().upper()
+        labels = {"A": "relevant", "B": "partial", "C": "contextual", "D": "not_relevant"}
+        label = str(judgement.get("label", "")).strip().lower()
+        reason = judgement.get("reason")
+        score = judgement.get("score")
+        if tier not in labels:
+            return RelationalSearch._invalid_judgement("judge tier is missing or invalid")
+        if label != labels[tier]:
+            return RelationalSearch._invalid_judgement("judge label is missing or inconsistent with tier")
+        if not isinstance(reason, str) or not reason.strip():
+            return RelationalSearch._invalid_judgement("judge reason is missing")
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            return RelationalSearch._invalid_judgement("judge score is missing or invalid")
+        if not 0.0 <= float(score) <= 1.0:
+            return RelationalSearch._invalid_judgement("judge score is outside the supported range")
+        return {
+            "valid": True,
+            "tier": tier,
+            "label": label,
+            "score": float(score),
+            "reason": reason.strip(),
+        }
+
     def _judge_batched(self, pool: list[SearchResult], rel: ClinicalRelation, stats: dict) -> list[dict]:
         if not pool or self._client is None:
             stats["judge_used"] = False
-            return [{"label": "partial", "score": 0.5, "reason": "judge unavailable"} for _ in pool]
+            return [self._invalid_judgement("judge unavailable") for _ in pool]
         out: list[dict] = []
         _batch_sz = _limits().judge_batch_size
         for i in range(0, len(pool), _batch_sz):
@@ -867,29 +823,38 @@ class RelationalSearch:
             try:
                 res = self._llm_judge(batch, rel)
                 stats["openai_calls"] += 1
-                # align by index 'i' in the returned JSON
-                idx_map = {r.get("i"): r for r in res}
+                if not isinstance(res, list):
+                    res = []
+                # Align by the explicit article index; missing entries stay invalid.
+                idx_map = {r.get("i"): r for r in res if isinstance(r, dict)}
                 for j, _art in enumerate(batch):
-                    out.append(idx_map.get(j, {"label": "partial", "score": 0.5, "reason": "missing"}))
+                    raw = idx_map.get(j)
+                    out.append(self._validate_judgement(raw))
             except Exception as exc:
                 stats["judge_used"] = False
                 stats["judge_errors"].append(str(exc))
                 logger.warning("RelationalSearch: judge batch failed — %s", exc)
                 for _art in batch:
-                    out.append({"label": "partial", "score": 0.5, "reason": f"judge error: {exc}"})
+                    out.append(self._invalid_judgement(f"judge error: {exc}"))
             time.sleep(1.0)  # be gentle with rate limits between batches
         return out
 
     def _llm_judge(self, batch: list[SearchResult], rel: ClinicalRelation) -> list[dict]:
         arts_txt = "\n".join(
-            f"[{i}] TITLE: {getattr(a,'title','')}\n    ABSTRACT: {(getattr(a,'abstract','') or '')[:700]}"
+            f"[{i}] TITLE: {getattr(a,'title','')}\n    ABSTRACT: {(getattr(a,'abstract','') or '')[:2000]}"
             for i, a in enumerate(batch)
         )
         prompt = _JUDGE_PROMPT.format(
+            original_query=rel.original_query,
             agent=rel.agent.get("normalized", ""), arole=rel.agent.get("role", ""),
             event=rel.event.get("normalized", ""), manifest=rel.manifestation.get("normalized", ""),
-            mrole=rel.manifestation.get("role", ""), temporal=rel.temporal,
-            rtype=rel.relation_type, desc=_describe(rel), arts=arts_txt,
+            mrole=rel.manifestation.get("role", ""),
+            site=rel.anatomical_site or rel.manifestation.get("site", {}),
+            formulation=rel.formulation,
+            temporal=rel.temporal,
+            rtype=rel.relation_type, scientific_query=rel.scientific_query,
+            relation_phrases=", ".join(str(p) for p in (rel.relation_phrases or [])),
+            desc=_describe(rel), arts=arts_txt,
         )
         data = self._llm_json(prompt, max_tokens=900)
         return data.get("results", []) or []

@@ -7,7 +7,8 @@
 | `ModuleNotFoundError: No module named 'fastapi'` | Dependencies not installed | `bash scripts/install.sh` |
 | `/health` returns 200 but scientific search returns 503 | No LLM provider key configured | Set `OPENAI_API_KEY` (or `PERPLEXITY_API_KEY`) in `.env` |
 | `connection refused` on port 8000 | Backend not started | `bash scripts/start.sh`, then `bash scripts/health-check.sh` |
-| Boot fails at Database stage | `DATABASE_URL` points to unreachable Postgres | For local use, set `DATABASE_URL=sqlite:///./hleo.db`; for Docker, ensure `db` service is healthy |
+| Full bootloader fails at Database stage | `scripts/setup.sh` is a fail-fast database preflight and `DATABASE_URL` points to unreachable Postgres | For local use, set `DATABASE_URL=sqlite:///./hleo.db`; for Docker, ensure `db` service is healthy |
+| Direct API startup logs a database warning | `api/main.py` could not initialize optional persistence | The API may still start; persistence-backed features can remain unavailable, while Scientific Search should continue to work without the database |
 | `scripts/start.sh` says "Already running" | A previous instance is still alive | `bash scripts/stop.sh`, then `scripts/start.sh` |
 | Stale pidfile but no process | Previous crash left the pidfile | `scripts/stop.sh` removes it, or delete `.hleo/hleo.pid` |
 | Reddit collector returns `no_credentials` | Reddit OAuth2 not configured | Set `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET`; without them Reddit is skipped |

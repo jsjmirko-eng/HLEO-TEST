@@ -28,8 +28,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func, desc, or_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from core.database import get_db, engine, Base
@@ -41,8 +42,19 @@ from core.models import (
 from api.partners import router as rwe_router
 from api.admin import router as admin_router
 from core.orchestrator import QueryOrchestrator
+from core.api_limits import costly_request_guard, cors_origins_from_env
+from core.input_limits import (
+    BodySizeLimitMiddleware,
+    MAX_BATCH_ITEMS,
+    MAX_CONTEXT_ITEMS,
+    MAX_FIELD_CHARS,
+    MAX_PIPELINE_RESULTS,
+    MAX_QUERY_CHARS,
+)
+from core.logging_utils import configure_redaction, query_fingerprint, redact_text
 
 logging.basicConfig(level=logging.INFO)
+configure_redaction()
 logger = logging.getLogger(__name__)
 
 # Module-level orchestrator instance (stateless, safe to share across requests)
@@ -56,21 +68,39 @@ _TRANSLATE_CACHE_MAXSIZE = int(os.getenv("TRANSLATE_CACHE_MAX_KEYS", "256"))
 _translate_cache: _collections.OrderedDict = _collections.OrderedDict()
 
 app = FastAPI(title="HLEO API", version="1.0.0")
+app.add_middleware(BodySizeLimitMiddleware)
 
-# Allow browser clients and reverse proxies (and any origin) to send cross-origin
-# POST/PATCH/DELETE requests with JSON bodies. The preflight OPTIONS can otherwise
-# block fetch() calls from the browser.
+# Cross-origin access is opt-in. Same-origin browser requests need no CORS entry.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins_from_env(),
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
-Base.metadata.create_all(bind=engine)
-from core.migrations import run_schema_upgrades
-run_schema_upgrades()
+
+def _initialize_database_best_effort() -> None:
+    """Initialize optional persistence without blocking API startup."""
+    try:
+        Base.metadata.create_all(bind=engine)
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "Database unavailable during startup; continuing without persistence: %s",
+            redact_text(exc, max_length=240),
+        )
+
+    try:
+        from core.migrations import run_schema_upgrades
+        run_schema_upgrades()
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "Database schema setup unavailable during startup; continuing without persistence: %s",
+            redact_text(exc, max_length=240),
+        )
+
+
+_initialize_database_best_effort()
 app.include_router(rwe_router)
 app.include_router(admin_router)
 
@@ -328,8 +358,12 @@ def stats(db: Session = Depends(get_db)):
 # ── Search (fast, no LLM) ─────────────────────────────────────────────────────
 
 @app.get("/search")
-def search(q: str = Query(..., description="Search query"),
-           mode: str = Query("scientific", description="Search mode: 'scientific' (relational, Level 2) | 'global' (broad keyword).")):
+def search(q: str = Query(..., max_length=MAX_QUERY_CHARS, description="Search query"),
+           mode: str = Query(
+               "scientific", max_length=MAX_FIELD_CHARS,
+               description="Search mode: 'scientific' (relational, Level 2) | 'global' (broad keyword).",
+           ),
+           _rate_limit: None = Depends(costly_request_guard)):
     """Collect results from all sources.
 
     Two modes:
@@ -349,8 +383,6 @@ def search(q: str = Query(..., description="Search query"),
             status_code=400,
             detail="mode='rwe' is not supported on /search. Use GET /rwe/search?q= instead.",
         )
-
-    from core.pipeline import HLEOPipeline
 
     if mode == "scientific":
         from core.relational_search import RelationalSearch
@@ -504,6 +536,8 @@ def search(q: str = Query(..., description="Search query"),
         }
 
     # ── Global mode: plain keyword pipeline (orchestrator + collect) ─────────
+    from core.pipeline import HLEOPipeline
+
     orch = _orchestrator.process(q)
     pipeline = HLEOPipeline()
     raw = pipeline.collect(orch.search_query)
@@ -542,9 +576,13 @@ def search(q: str = Query(..., description="Search query"),
 # ── Article pipeline ──────────────────────────────────────────────────────────
 
 @app.post("/pipeline/run")
-def run_pipeline(q: str = Query(...), db: Session = Depends(get_db),
-                 mode: str = Query("scientific", description="Extraction mode: 'scientific' (relational, relevant-only) | 'global' (broad, all articles)."),
-                 max_results: Optional[int] = Query(None, description="Optional cap on number of articles to process (testing)")):
+def run_pipeline(q: str = Query(..., max_length=MAX_QUERY_CHARS), db: Session = Depends(get_db),
+                 mode: str = Query(
+                     "scientific", max_length=MAX_FIELD_CHARS,
+                     description="Extraction mode: 'scientific' (relational, relevant-only) | 'global' (broad, all articles).",
+                 ),
+                 max_results: Optional[int] = Query(None, ge=1, le=MAX_PIPELINE_RESULTS, description="Optional cap on number of articles to process (testing)"),
+                 _rate_limit: None = Depends(costly_request_guard)):
     """
     Full article pipeline (NO persistent storage of extracted profiles by default):
     1. Collect from PubMed, EuropePMC, ClinicalTrials (Reddit only in global)
@@ -642,7 +680,7 @@ def run_pipeline(q: str = Query(...), db: Session = Depends(get_db),
                 )
                 return idx, "ok", payload, None
             except Exception as exc:
-                return idx, "error", None, str(exc)
+                return idx, "error", None, redact_text(exc, max_length=240)
 
         logger.info(
             "Extraction | %d articles → parallel (max_workers=%d)",
@@ -782,8 +820,11 @@ def _get_attribution(db: Session, episode_id: str) -> Optional[dict]:
 @app.get("/profiles")
 def list_profiles(
     limit:       int           = Query(20, ge=1, le=100),
-    episode_ids: Optional[str] = Query(None),   # comma-separated; filters to current search
-    search_id: Optional[str] = Query(None, description="Optional ephemeral search_id returned by /pipeline/run"),
+    episode_ids: Optional[str] = Query(None, max_length=MAX_FIELD_CHARS),  # comma-separated; filters to current search
+    search_id: Optional[str] = Query(
+        None, max_length=MAX_FIELD_CHARS,
+        description="Optional ephemeral search_id returned by /pipeline/run",
+    ),
     db:          Session       = Depends(get_db),
 ):
     """Return saved clinical profiles with source attribution.
@@ -864,7 +905,11 @@ def list_profiles(
 # ── Patient experiences ───────────────────────────────────────────────────────
 
 @app.post("/experiences/ingest")
-def ingest_experiences(q: str = Query(...), db: Session = Depends(get_db)):
+def ingest_experiences(
+    q: str = Query(..., max_length=MAX_QUERY_CHARS),
+    db: Session = Depends(get_db),
+    _rate_limit: None = Depends(costly_request_guard),
+):
     """
     Collect Reddit posts via PRAW OAuth, LLM-extract patient experiences, save to DB.
 
@@ -891,7 +936,10 @@ def ingest_experiences(q: str = Query(...), db: Session = Depends(get_db)):
     raw_reddit, reddit_status, reddit_reason = collector.search_with_status(
         orch.search_query, limit=15
     )
-    logger.info(f"Reddit [{reddit_status}] for '{orch.search_query}': {reddit_reason}")
+    logger.info(
+        "Reddit [%s] for %s: %s",
+        reddit_status, query_fingerprint(orch.search_query), reddit_reason,
+    )
 
     if reddit_status != STATUS_OK:
         return {
@@ -946,7 +994,7 @@ def ingest_experiences(q: str = Query(...), db: Session = Depends(get_db)):
 
         except Exception as exc:
             logger.exception(f"Failed to extract experience {episode_id}: {exc}")
-            errors.append({"episode_id": episode_id, "error": str(exc)})
+            errors.append({"episode_id": episode_id, "error": redact_text(exc, max_length=240)})
 
     n_saved = len([s for s in saved if s.get('status') in ('saved','extracted')])
     return {
@@ -1000,13 +1048,15 @@ def list_experiences(
 
 @app.get("/rwe/search")
 def rwe_search(
-    q: str = Query(..., description="RWE search query"),
+    q: str = Query(..., max_length=MAX_QUERY_CHARS, description="RWE search query"),
     limit: int = Query(30, ge=1, le=400),
     page: int = Query(1, ge=1),
-    search_id: Optional[str] = Query(None),
+    search_id: Optional[str] = Query(None, max_length=MAX_FIELD_CHARS),
     sources: Optional[str] = Query(
-        None, description="Comma-separated subset: reddit,openfda_faers,calvizie,hairlosstalk,hairlossexperiences,maladiesrares"
+        None, max_length=MAX_FIELD_CHARS,
+        description="Comma-separated subset: reddit,openfda_faers,calvizie,hairlosstalk,hairlossexperiences,maladiesrares",
     ),
+    _rate_limit: None = Depends(costly_request_guard),
 ):
     """Run RWE once, then serve cached final results in pages of 30."""
     from core.rwe.pipeline import RWEPipeline
@@ -1045,22 +1095,23 @@ def rwe_search(
 
 class RWEExtractRequest(BaseModel):
     """FASE 13: extract a profile from a single RWE item."""
-    title: str = ""
-    text: str = ""
-    source: str = ""
-    source_type: str = ""
-    evidence_tier: str = "anecdotal"
-    source_url: str = ""
-    external_id: str = ""
-    treatment: str = ""
-    condition: str = ""
-    experience_type: str = "discussion"
-    language: str = "en"
-    query_context: str = ""
+    title: str = Field("", max_length=MAX_FIELD_CHARS)
+    text: str = Field("", max_length=MAX_FIELD_CHARS)
+    source: str = Field("", max_length=MAX_FIELD_CHARS)
+    source_type: str = Field("", max_length=MAX_FIELD_CHARS)
+    evidence_tier: str = Field("anecdotal", max_length=MAX_FIELD_CHARS)
+    source_url: str = Field("", max_length=MAX_FIELD_CHARS)
+    external_id: str = Field("", max_length=MAX_FIELD_CHARS)
+    treatment: str = Field("", max_length=MAX_FIELD_CHARS)
+    condition: str = Field("", max_length=MAX_FIELD_CHARS)
+    experience_type: str = Field("discussion", max_length=MAX_FIELD_CHARS)
+    language: str = Field("en", max_length=MAX_FIELD_CHARS)
+    query_context: str = Field("", max_length=MAX_FIELD_CHARS)
 
 
 @app.post("/rwe/extract")
-def rwe_extract_profile(body: RWEExtractRequest, db: Session = Depends(get_db)):
+def rwe_extract_profile(body: RWEExtractRequest, db: Session = Depends(get_db),
+                        _rate_limit: None = Depends(costly_request_guard)):
     """FASE 13: LLM-extract a structured profile from a single RWE item.
 
     NOTE: Under the new architecture, extracted RWE profiles are NOT persisted
@@ -1085,7 +1136,7 @@ def rwe_extract_profile(body: RWEExtractRequest, db: Session = Depends(get_db)):
             condition=body.condition,
         )
     except RuntimeError as exc:
-        return {"error": str(exc)}
+        return {"error": redact_text(exc, max_length=240)}
     except Exception as exc:
         logger.exception(f"/rwe/extract failed — {exc}")
         return {"error": f"RWE extraction failed: {exc}"}
@@ -1116,34 +1167,37 @@ class RWEBatchExtractItem(BaseModel):
     endpoint.
     All fields are Optional so that null values from /rwe/search are accepted.
     """
-    source: Optional[str] = ""
-    source_type: Optional[str] = ""
-    evidence_tier: Optional[str] = "anecdotal"
-    collection_method: Optional[str] = ""
-    source_url: Optional[str] = ""
-    external_id: Optional[str] = ""
-    title: Optional[str] = ""
-    text: Optional[str] = ""
-    date: Optional[str] = ""
-    language: Optional[str] = "en"
-    topic: Optional[str] = ""
-    treatment: Optional[str] = ""
-    condition: Optional[str] = ""
-    experience_type: Optional[str] = "discussion"
+    source: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    source_type: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    evidence_tier: Optional[str] = Field("anecdotal", max_length=MAX_FIELD_CHARS)
+    collection_method: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    source_url: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    external_id: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    title: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    text: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    date: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    language: Optional[str] = Field("en", max_length=MAX_FIELD_CHARS)
+    topic: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    treatment: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    condition: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    experience_type: Optional[str] = Field("discussion", max_length=MAX_FIELD_CHARS)
 
     model_config = {"extra": "ignore"}
 
 
 class RWEBatchExtractRequest(BaseModel):
     """Batch of RWE items to extract experiences from."""
-    query: Optional[str] = ""
-    items: List[RWEBatchExtractItem] = []
+    query: Optional[str] = Field("", max_length=MAX_QUERY_CHARS)
+    items: List[RWEBatchExtractItem] = Field(
+        default_factory=list, max_length=MAX_BATCH_ITEMS
+    )
 
     model_config = {"extra": "ignore"}
 
 
 @app.post("/rwe/extract-batch")
-def rwe_extract_batch(body: RWEBatchExtractRequest, db: Session = Depends(get_db)):
+def rwe_extract_batch(body: RWEBatchExtractRequest, db: Session = Depends(get_db),
+                      _rate_limit: None = Depends(costly_request_guard)):
     """Extract structured experiences from the REAL RWE items in the current
     RWE search.
 
@@ -1226,11 +1280,11 @@ def rwe_extract_batch(body: RWEBatchExtractRequest, db: Session = Depends(get_db
             )
         except RuntimeError as exc:
             errors += 1
-            error_details.append({"source": it.source, "error": str(exc)})
+            error_details.append({"source": it.source, "error": redact_text(exc, max_length=240)})
             continue
         except Exception as exc:
             errors += 1
-            error_details.append({"source": it.source, "error": str(exc)})
+            error_details.append({"source": it.source, "error": redact_text(exc, max_length=240)})
             continue
 
         episode_id = f"rwe-{dedup_key}"
@@ -1277,10 +1331,13 @@ def rwe_extract_batch(body: RWEBatchExtractRequest, db: Session = Depends(get_db
 @app.get("/rwe/profiles")
 def list_rwe_profiles(
     db: Session = Depends(get_db),
-    source: Optional[str] = None,
-    treatment: Optional[str] = None,
-    limit: int = 50,
-    search_id: Optional[str] = Query(None, description="Optional ephemeral search_id returned by /rwe/extract-batch"),
+    source: Optional[str] = Query(None, max_length=MAX_FIELD_CHARS),
+    treatment: Optional[str] = Query(None, max_length=MAX_FIELD_CHARS),
+    limit: int = Query(50, ge=1, le=MAX_PIPELINE_RESULTS),
+    search_id: Optional[str] = Query(
+        None, max_length=MAX_FIELD_CHARS,
+        description="Optional ephemeral search_id returned by /rwe/extract-batch",
+    ),
 ):
     """FASE 13: list stored RWE profiles.
 
@@ -1346,8 +1403,8 @@ def list_rwe_profiles(
 @app.get("/rwe/testimonianze")
 def list_rwe_testimonianze(
     db: Session = Depends(get_db),
-    treatment: Optional[str] = None,
-    limit: int = 20,
+    treatment: Optional[str] = Query(None, max_length=MAX_FIELD_CHARS),
+    limit: int = Query(20, ge=1, le=MAX_PIPELINE_RESULTS),
 ):
     """FASE 14: curated testimonials (is_testimonial=True) derived from RWE profiles.
 
@@ -1397,16 +1454,16 @@ def curate_testimonial(episode_id: str, db: Session = Depends(get_db)):
 
 class SearchArticleCtx(BaseModel):
     """One article from the active search, sent by the frontend."""
-    source: str                     # "pubmed" | "europepmc" | "clinicaltrials"
-    title: str
-    abstract: Optional[str] = ""
-    url: Optional[str] = ""
+    source: str = Field(max_length=MAX_FIELD_CHARS)  # "pubmed" | "europepmc" | "clinicaltrials"
+    title: str = Field(max_length=MAX_FIELD_CHARS)
+    abstract: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    url: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
     # Bibliographic identifiers — used by the AI for accurate Key Studies citations
-    pmid: Optional[str] = ""
-    doi: Optional[str] = ""
-    nct_id: Optional[str] = ""
-    year: Optional[str] = ""
-    journal: Optional[str] = ""
+    pmid: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    doi: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    nct_id: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    year: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    journal: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
 
 class RWEItemCtx(BaseModel):
     """One RWE item forwarded by the frontend with a chat message.
@@ -1415,30 +1472,30 @@ class RWEItemCtx(BaseModel):
     and ``evidence_tier`` let the Assistant distinguish testimonials /
     pharmacovigilance reports from clinical studies.
     """
-    source: str
-    source_type: str
-    evidence_tier: str = "anecdotal"
-    collection_method: str = "official_api"
-    source_url: Optional[str] = ""
-    external_id: Optional[str] = ""
-    title: str = ""
-    text: str = ""
-    date: Optional[str] = ""
-    language: str = "en"
-    topic: str = ""
-    treatment: Optional[str] = ""
-    condition: Optional[str] = ""
-    experience_type: str = "discussion"
-    relevance: str = "unknown"
-    relevance_reason: Optional[str] = ""
-    privacy_status: str = "redacted"
+    source: str = Field(max_length=MAX_FIELD_CHARS)
+    source_type: str = Field(max_length=MAX_FIELD_CHARS)
+    evidence_tier: str = Field("anecdotal", max_length=MAX_FIELD_CHARS)
+    collection_method: str = Field("official_api", max_length=MAX_FIELD_CHARS)
+    source_url: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    external_id: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    title: str = Field("", max_length=MAX_FIELD_CHARS)
+    text: str = Field("", max_length=MAX_FIELD_CHARS)
+    date: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    language: str = Field("en", max_length=MAX_FIELD_CHARS)
+    topic: str = Field("", max_length=MAX_FIELD_CHARS)
+    treatment: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    condition: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    experience_type: str = Field("discussion", max_length=MAX_FIELD_CHARS)
+    relevance: str = Field("unknown", max_length=MAX_FIELD_CHARS)
+    relevance_reason: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    privacy_status: str = Field("redacted", max_length=MAX_FIELD_CHARS)
     # Search-engine provenance (Phase: RWE Search Engine)
-    matched_query: Optional[str] = ""
-    matched_query_type: Optional[str] = ""
-    source_language: str = "en"
+    matched_query: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    matched_query_type: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    source_language: str = Field("en", max_length=MAX_FIELD_CHARS)
     relevance_score: float = 0.0
-    match_reason: Optional[str] = ""
-    metadata: dict = {}
+    match_reason: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    metadata: dict = Field(default_factory=dict)
 
 class SearchContext(BaseModel):
     """
@@ -1449,16 +1506,20 @@ class SearchContext(BaseModel):
     RWE evidence. They are kept separate so the Assistant never conflates a
     testimonial with a clinical study.
     """
-    original_query: str
-    search_query: str               # English query actually sent to collectors
-    detected_language: str          # ISO-639-1 code from orchestrator
-    articles: List[SearchArticleCtx] = []
-    rwe_evidence: List[RWEItemCtx] = []   # Feature: RWE convergence
+    original_query: str = Field(max_length=MAX_QUERY_CHARS)
+    search_query: str = Field(max_length=MAX_QUERY_CHARS)  # English query actually sent to collectors
+    detected_language: str = Field(max_length=MAX_FIELD_CHARS)  # ISO-639-1 code from orchestrator
+    articles: List[SearchArticleCtx] = Field(
+        default_factory=list, max_length=MAX_CONTEXT_ITEMS
+    )
+    rwe_evidence: List[RWEItemCtx] = Field(
+        default_factory=list, max_length=MAX_CONTEXT_ITEMS
+    )   # Feature: RWE convergence
 
 class ChatRequest(BaseModel):
-    session_id: Optional[str] = None
-    message: str
-    language: Optional[str] = "en"         # ISO 639-1 code, e.g. "en" / "it"
+    session_id: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    message: str = Field(max_length=MAX_FIELD_CHARS)
+    language: Optional[str] = Field("en", max_length=MAX_FIELD_CHARS)  # ISO 639-1 code, e.g. "en" / "it"
     search_context: Optional[SearchContext] = None   # Feature 002: active search
 
 
@@ -1466,41 +1527,43 @@ class ChatRequest(BaseModel):
 
 class SynthesisArticle(BaseModel):
     """One article already judged relevant by the Level 2 relational judge."""
-    source: str
-    title: str
-    abstract: Optional[str] = ""
-    url: Optional[str] = ""
-    pmid: Optional[str] = ""
-    doi: Optional[str] = ""
-    nct_id: Optional[str] = ""
-    year: Optional[str] = ""
-    journal: Optional[str] = ""
-    relevance_label: Optional[str] = ""
+    source: str = Field(max_length=MAX_FIELD_CHARS)
+    title: str = Field(max_length=MAX_FIELD_CHARS)
+    abstract: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    url: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    pmid: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    doi: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    nct_id: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    year: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    journal: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    relevance_label: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
     relevance_score: Optional[float] = None
-    relevance_reason: Optional[str] = ""
+    relevance_reason: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
 
 
 class SynthesisRelation(BaseModel):
     """The ClinicalRelation extracted by Level 2 (passed through from /search)."""
-    original_query: str = ""
-    agent: dict = {}
-    event: dict = {}
-    anatomical_site: dict = {}
-    manifestation: dict = {}
-    temporal: str = ""
-    relation_type: str = "unknown"
-    scientific_query: str = ""
-    relation_phrases: list = []
+    original_query: str = Field("", max_length=MAX_QUERY_CHARS)
+    agent: dict = Field(default_factory=dict)
+    event: dict = Field(default_factory=dict)
+    anatomical_site: dict = Field(default_factory=dict)
+    manifestation: dict = Field(default_factory=dict)
+    temporal: str = Field("", max_length=MAX_FIELD_CHARS)
+    relation_type: str = Field("unknown", max_length=MAX_FIELD_CHARS)
+    scientific_query: str = Field("", max_length=MAX_QUERY_CHARS)
+    relation_phrases: list = Field(default_factory=list, max_length=MAX_CONTEXT_ITEMS)
     fallback_needed: bool = False
 
 
 class SynthesisRequest(BaseModel):
-    query: str
-    search_query: Optional[str] = ""
-    detected_language: Optional[str] = "en"
-    language: Optional[str] = "en"
+    query: str = Field(max_length=MAX_QUERY_CHARS)
+    search_query: Optional[str] = Field("", max_length=MAX_QUERY_CHARS)
+    detected_language: Optional[str] = Field("en", max_length=MAX_FIELD_CHARS)
+    language: Optional[str] = Field("en", max_length=MAX_FIELD_CHARS)
     relation: Optional[SynthesisRelation] = None
-    articles: List[SynthesisArticle] = []
+    articles: List[SynthesisArticle] = Field(
+        default_factory=list, max_length=MAX_CONTEXT_ITEMS
+    )
 
 
 class CardSynthesisRequest(BaseModel):
@@ -1509,27 +1572,28 @@ class CardSynthesisRequest(BaseModel):
     Synthesises a SINGLE article or RWE record on demand — no auto-synthesis,
     no global batch. The user clicks 'Ricava sintesi' on a specific card.
     """
-    query: str
-    title: str
-    abstract: str = ""
-    text: str = ""
-    source: str = ""
-    url: str = ""
-    pmid: str = ""
-    doi: str = ""
-    nct_id: str = ""
-    external_id: str = ""
-    source_type: str = ""       # scientific_article | community_forum | pharmacovigilance
-    evidence_tier: str = ""     # RCT | anecdotal | spontaneous_report | …
-    treatment: str = ""
-    condition: str = ""
-    language: str = "en"        # output language
+    query: str = Field(max_length=MAX_QUERY_CHARS)
+    title: str = Field(max_length=MAX_FIELD_CHARS)
+    abstract: str = Field("", max_length=MAX_FIELD_CHARS)
+    text: str = Field("", max_length=MAX_FIELD_CHARS)
+    source: str = Field("", max_length=MAX_FIELD_CHARS)
+    url: str = Field("", max_length=MAX_FIELD_CHARS)
+    pmid: str = Field("", max_length=MAX_FIELD_CHARS)
+    doi: str = Field("", max_length=MAX_FIELD_CHARS)
+    nct_id: str = Field("", max_length=MAX_FIELD_CHARS)
+    external_id: str = Field("", max_length=MAX_FIELD_CHARS)
+    source_type: str = Field("", max_length=MAX_FIELD_CHARS)  # scientific_article | community_forum | pharmacovigilance
+    evidence_tier: str = Field("", max_length=MAX_FIELD_CHARS)  # RCT | anecdotal | spontaneous_report | …
+    treatment: str = Field("", max_length=MAX_FIELD_CHARS)
+    condition: str = Field("", max_length=MAX_FIELD_CHARS)
+    language: str = Field("en", max_length=MAX_FIELD_CHARS)  # output language
 
 
 @app.post("/assistant/chat")
 def assistant_chat(
     body: ChatRequest,
     db: Session = Depends(get_db),
+    _rate_limit: None = Depends(costly_request_guard),
 ):
     """
     AI Clinical Assistant — RAG over stored profiles and patient experiences.
@@ -2197,7 +2261,8 @@ def _describe_synthesis_relation(rel: Optional[SynthesisRelation]) -> str:
 
 
 @app.post("/synthesis")
-def synthesize(body: SynthesisRequest):
+def synthesize(body: SynthesisRequest,
+               _rate_limit: None = Depends(costly_request_guard)):
     """Level 3: synthesize a structured scientific answer from Level 2 results.
 
     Receives the query, the ClinicalRelation extracted by /search (scientific),
@@ -2308,7 +2373,8 @@ Rules:
 
 
 @app.post("/synthesis/card")
-def synthesize_card(body: CardSynthesisRequest):
+def synthesize_card(body: CardSynthesisRequest,
+                    _rate_limit: None = Depends(costly_request_guard)):
     """FASE 8: on-demand synthesis of a SINGLE article/RWE record.
 
     No auto-synthesis, no batch. The user explicitly requests synthesis for one
@@ -2405,19 +2471,28 @@ def synthesize_card(body: CardSynthesisRequest):
 
 class CompareRequest(BaseModel):
     """FASE 15: structured comparison of scientific evidence vs RWE for a query."""
-    query: str
-    search_query: str = ""
-    detected_language: str = "en"
-    language: str = "en"
-    scientific_articles: List[SearchArticleCtx] = []
-    rwe_evidence: List[RWEItemCtx] = []
+    query: str = Field(max_length=MAX_QUERY_CHARS)
+    search_query: str = Field("", max_length=MAX_QUERY_CHARS)
+    detected_language: str = Field("en", max_length=MAX_FIELD_CHARS)
+    language: str = Field("en", max_length=MAX_FIELD_CHARS)
+    scientific_articles: List[SearchArticleCtx] = Field(
+        default_factory=list, max_length=MAX_CONTEXT_ITEMS
+    )
+    rwe_evidence: List[RWEItemCtx] = Field(
+        default_factory=list, max_length=MAX_CONTEXT_ITEMS
+    )
     # Optional episode-id lists: backend will fetch full profiles when provided
-    clinical_profile_episode_ids: List[str] = []
-    rwe_profile_episode_ids: List[str] = []
+    clinical_profile_episode_ids: List[str] = Field(
+        default_factory=list, max_length=MAX_CONTEXT_ITEMS
+    )
+    rwe_profile_episode_ids: List[str] = Field(
+        default_factory=list, max_length=MAX_CONTEXT_ITEMS
+    )
 
 
 @app.post("/assistant/compare")
-def assistant_compare(body: CompareRequest, db: Session = Depends(get_db)):
+def assistant_compare(body: CompareRequest, db: Session = Depends(get_db),
+                      _rate_limit: None = Depends(costly_request_guard)):
     """FASE 15: structured Scientific vs RWE comparison.
 
     Produces a structured comparison showing where scientific evidence and RWE
@@ -2593,13 +2668,14 @@ def get_session(session_id: str, db: Session = Depends(get_db)):
 # ── Translation endpoint ──────────────────────────────────────────────────────
 
 class TranslateRequest(BaseModel):
-    text: str
-    target_lang: str = "it"
-    content_type: str = "clinical_article"   # clinical_article | patient_experience | general
+    text: str = Field(max_length=MAX_FIELD_CHARS)
+    target_lang: str = Field("it", max_length=MAX_FIELD_CHARS)
+    content_type: str = Field("clinical_article", max_length=MAX_FIELD_CHARS)  # clinical_article | patient_experience | general
 
 
 @app.post("/translate")
-async def translate_text(body: TranslateRequest):
+async def translate_text(body: TranslateRequest,
+                         _rate_limit: None = Depends(costly_request_guard)):
     """
     AI translation endpoint used by the frontend language switcher.
     Accepts {text, target_lang, content_type}.

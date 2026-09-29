@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 .agents_tmp/
 
+# Local secrets and environment overrides
+.env
+
 # Local test sqlite DB
 test_hleo.db
 # Local temporary test DBs and agent audit artifacts

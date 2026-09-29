@@ -24,6 +24,7 @@ from core.orchestrator import QueryOrchestrator  # noqa: F401  (patched by tests
 from core.rwe.intent import GENERIC_EVENT_TERMS, merged_sides
 from core.rwe.models import RWEItem, RWESearchResult
 from core.rwe.query_engine import RWEQueryEngine
+from core.logging_utils import query_fingerprint, redact_text
 from core.rwe.relation_filter import apply_relation_gate, experience_relation_match
 
 logger = logging.getLogger(__name__)
@@ -694,48 +695,69 @@ class RWEPipeline:
         # ── 1. Build the query plan (detect → prepare → translate → expand) ──
         plan = self._engine.plan(query)
 
-        # Resolve effective sources: if caller provided an explicit list, prefer it;
-        # otherwise read active RWE sources from SourceRegistry. Fall back to legacy
-        # default list if no registry rows are present.
-        from core.database import SessionLocal
-        from core.models import SourceRegistry
-        from sqlalchemy import select
-
-        registry_map: Dict[str, SourceRegistry] = {}
+        # Resolve effective sources from the technical registry when available.
+        # Registry access is optional for RWE search: source IDs below are the
+        # built-in collector contract, not semantic vocabulary or policy.
+        registry_map: Dict[str, object] = {}
+        default_sources = [
+            "reddit", "openfda_faers", "calvizie",
+            "hairlosstalk", "hairlossexperiences", "maladiesrares",
+        ]
         effective_sources: List[str] = []
 
         if sources:
-            # normalize provided list and try to resolve registry rows for them
             requested = [s.strip() for s in sources if s and s.strip()]
             if requested:
-                with SessionLocal() as db:
-                    rows = db.execute(select(SourceRegistry).where(SourceRegistry.source_id.in_(requested))).scalars().all()
-                rows_by_id = {r.source_id: r for r in rows}
-                for s in requested:
-                    if s in rows_by_id:
-                        registry_map[s] = rows_by_id[s]
-                        effective_sources.append(s)
-                    else:
-                        # allow direct collector keys (legacy) to be passed through
-                        effective_sources.append(s)
-        else:
-            # discover active RWE sources from the registry
-            with SessionLocal() as db:
-                rows = db.execute(
-                    select(SourceRegistry).where(
-                        SourceRegistry.category == "rwe_experience",
-                        SourceRegistry.status == "active",
+                try:
+                    from core.database import SessionLocal
+                    from core.models import SourceRegistry
+                    from sqlalchemy import select
+
+                    with SessionLocal() as db:
+                        rows = db.execute(
+                            select(SourceRegistry).where(
+                                SourceRegistry.source_id.in_(requested)
+                            )
+                        ).scalars().all()
+                    rows_by_id = {r.source_id: r for r in rows}
+                    for source_id in requested:
+                        if source_id in rows_by_id:
+                            registry_map[source_id] = rows_by_id[source_id]
+                        effective_sources.append(source_id)
+                except Exception as exc:
+                    logger.warning(
+                        "RWE source registry unavailable; using requested built-in sources: %s",
+                        type(exc).__name__,
                     )
-                ).scalars().all()
-            if rows:
-                for r in rows:
-                    registry_map[r.source_id] = r
-                    effective_sources.append(r.source_id)
-            else:
-                effective_sources = [
-                    "reddit", "openfda_faers", "calvizie",
-                    "hairlosstalk", "hairlossexperiences", "maladiesrares",
-                ]
+                    effective_sources = [
+                        source_id for source_id in requested
+                        if source_id in default_sources
+                    ]
+        else:
+            try:
+                from core.database import SessionLocal
+                from core.models import SourceRegistry
+                from sqlalchemy import select
+
+                with SessionLocal() as db:
+                    rows = db.execute(
+                        select(SourceRegistry).where(
+                            SourceRegistry.category == "rwe_experience",
+                            SourceRegistry.status == "active",
+                        )
+                    ).scalars().all()
+                if rows:
+                    for row in rows:
+                        registry_map[row.source_id] = row
+                        effective_sources.append(row.source_id)
+            except Exception as exc:
+                logger.warning(
+                    "RWE source registry unavailable; using built-in sources: %s",
+                    type(exc).__name__,
+                )
+
+            if not effective_sources:
+                effective_sources = default_sources
 
         per_source_limits = {s: limit for s in effective_sources}
         # ensure default caps for legacy keys if present
@@ -909,7 +931,10 @@ class RWEPipeline:
                     eq.query, limit=None
                 )
             except Exception as exc:
-                logger.warning(f"RWE collector {name} failed for '{eq.query}': {exc}")
+                logger.warning(
+                    "RWE collector %s failed for %s: %s",
+                    name, query_fingerprint(eq.query), redact_text(exc, max_length=160),
+                )
                 statuses.append("network_error")
                 continue
             statuses.append(status)

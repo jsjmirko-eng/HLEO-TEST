@@ -21,6 +21,9 @@ import core.llm_provider as lp
 from core.llm_provider import (
     LLMProvider,
     build_provider,
+    decrypt_secret,
+    encrypt_secret,
+    is_encrypted_secret,
     llm_available,
     resolve_model,
 )
@@ -86,11 +89,41 @@ def _clean_llm_env(monkeypatch):
     for var in ("OPENAI_API_KEY", "HLEO_LLM_PROVIDER",
                 "OPENAI_BASE_URL", "HLEO_LLM_MODEL"):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("HLEO_SECRET_KEY", "test-suite-master-key")
 
 
 @pytest.fixture(autouse=True)
 def _no_sleep(monkeypatch):
     monkeypatch.setattr("core.llm_guard.time.sleep", lambda d: None)
+
+
+class TestProviderSecretEncryption:
+    def test_fernet_round_trip_and_ciphertext(self, monkeypatch):
+        monkeypatch.setenv("HLEO_SECRET_KEY", "test-master-key")
+        ciphertext = encrypt_secret("provider-api-key")
+
+        assert is_encrypted_secret(ciphertext)
+        assert ciphertext != "provider-api-key"
+        assert "provider-api-key" not in ciphertext
+        assert decrypt_secret(ciphertext) == "provider-api-key"
+
+    def test_wrong_master_key_fails_closed(self, monkeypatch):
+        monkeypatch.setenv("HLEO_SECRET_KEY", "test-master-key")
+        ciphertext = encrypt_secret("provider-api-key")
+        monkeypatch.setenv("HLEO_SECRET_KEY", "different-master-key")
+
+        assert decrypt_secret(ciphertext) == ""
+
+    def test_provider_slot_round_trip_uses_encrypted_column(self, monkeypatch):
+        monkeypatch.setenv("HLEO_SECRET_KEY", "test-master-key")
+        slot = LLMProviderSlot(slot_index=4)
+        slot.api_key = "provider-api-key"
+
+        assert slot.api_key_encrypted != "provider-api-key"
+        assert slot.api_key == "provider-api-key"
+
+
+
 
 
 # ── Provider selection ────────────────────────────────────────────────────────

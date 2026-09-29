@@ -32,38 +32,45 @@ class LLMProvider:
     model_override: str = ""
 
 
+_FERNET_PREFIX = "fernet:v1:"
+
+
 def _secret_key() -> str:
-    key = (os.getenv("HLEO_SECRET_KEY") or os.getenv("HLEO_ADMIN_PASSWORD_HASH") or "hleo-default-dev-secret").strip()
-    return key or "hleo-default-dev-secret"
+    key = (os.getenv("HLEO_SECRET_KEY") or
+           os.getenv("HLEO_ADMIN_PASSWORD_HASH") or "").strip()
+    if not key:
+        raise RuntimeError(
+            "HLEO_SECRET_KEY or HLEO_ADMIN_PASSWORD_HASH is required "
+            "to encrypt persisted provider secrets."
+        )
+    return key
+
+
+def _fernet():
+    from cryptography.fernet import Fernet
+
+    digest = hashlib.sha256(_secret_key().encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def is_encrypted_secret(payload: str) -> bool:
+    return bool(payload and payload.startswith(_FERNET_PREFIX))
 
 
 def encrypt_secret(plain: str) -> str:
     if not plain:
         return ""
-    key = hashlib.sha256(_secret_key().encode()).digest()
-    raw = plain.encode()
-    enc = bytes(b ^ key[i % len(key)] for i, b in enumerate(raw))
-    return base64.b64encode(enc).decode()
+    token = _fernet().encrypt(plain.encode()).decode()
+    return _FERNET_PREFIX + token
 
 
 def decrypt_secret(payload: str) -> str:
-    if not payload:
+    if not payload or not is_encrypted_secret(payload):
         return ""
-    key = hashlib.sha256(_secret_key().encode()).digest()
     try:
-        raw = base64.b64decode(payload.encode())
+        return _fernet().decrypt(payload[len(_FERNET_PREFIX):].encode()).decode()
     except Exception:
         return ""
-    return bytes(b ^ key[i % len(key)] for i, b in enumerate(raw)).decode()
-
-
-def _xor_encrypt(plain: str) -> str:
-    return encrypt_secret(plain)
-
-
-def _xor_decrypt(payload: str) -> str:
-    return decrypt_secret(payload)
-
 
 
 def _get_db_llm_config() -> Optional[dict]:
@@ -126,7 +133,7 @@ def _get_db_llm_config() -> Optional[dict]:
             "protocol": protocol,
             "base_url": (getattr(row, "base_url", "") or "").strip(),
             "model": (getattr(row, "model", "") or "").strip(),
-            "api_key": _xor_decrypt(getattr(row, "api_key_encrypted", "") or ""),
+            "api_key": decrypt_secret(getattr(row, "api_key_encrypted", "") or ""),
         }
     except Exception as exc:
         logger.warning("LLM config: unable to load persisted Admin config — %s", exc)
@@ -154,7 +161,7 @@ def _get_db_llm_config_legacy() -> Optional[dict]:
                 "protocol": protocol,
                 "base_url": (row.base_url or "").strip(),
                 "model": (row.model or "").strip(),
-                "api_key": _xor_decrypt(row.api_key_encrypted or ""),
+                "api_key": decrypt_secret(row.api_key_encrypted or ""),
             }
         finally:
             db.close()

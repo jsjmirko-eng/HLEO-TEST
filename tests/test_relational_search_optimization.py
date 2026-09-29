@@ -86,8 +86,8 @@ def _make_relational_search_instance(
 def _make_variant(name: str):
     """Return a mock ClinicalRelation variant object used by query builders."""
     v = MagicMock()
-    v.agent = {"normalized": "drug", "search_terms": ["drug"]}
-    v.manifestation = {"normalized": "rash", "search_terms": ["rash"]}
+    v.agent = {"normalized": "drug"}
+    v.manifestation = {"normalized": "rash"}
     v.relation_type = "adverse_effect"
     return v
 
@@ -102,8 +102,7 @@ def _run_collection(instance, expanded, limits_override=None):
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     raw = {"pubmed": [], "europepmc": [], "clinicaltrials": []}
-    stats = {"query_calls": 0, "openai_calls": 0, "judge_errors": [], "judge_used": False,
-             "vocab_enabled": False}
+    stats = {"query_calls": 0, "openai_calls": 0, "judge_errors": [], "judge_used": False}
 
     collectors = {
         "pubmed": (instance.pubmed, instance._build_pubmed_query),

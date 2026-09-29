@@ -79,6 +79,10 @@ class HLEOAggregator:
         meta = getattr(article, "metadata", {}) or {}
         keys: list[str] = []
 
+        doi = cls._normalize_doi(getattr(article, "doi", None))
+        if doi:
+            keys.append(f"doi:{doi}")
+
         pmid = getattr(article, "pmid", None)
         if not pmid:
             epmc_id = str(meta.get("id", "")).strip()
@@ -87,9 +91,9 @@ class HLEOAggregator:
         if pmid:
             keys.append(f"pmid:{str(pmid).strip()}")
 
-        doi = cls._normalize_doi(getattr(article, "doi", None))
-        if doi:
-            keys.append(f"doi:{doi}")
+        pmcid = getattr(article, "pmcid", None) or meta.get("pmcid")
+        if pmcid:
+            keys.append(f"pmcid:{str(pmcid).strip().upper()}")
 
         nct = str(meta.get("nct_id", "") or "").strip()
         if nct and nct.lower() != "unknown":
@@ -98,6 +102,11 @@ class HLEOAggregator:
         epmc_id = str(meta.get("id", "")).strip()
         if epmc_id:
             keys.append(f"epmcid:{epmc_id}")
+
+        source_id = getattr(article, "source_id", None) or meta.get("source_id")
+        if source_id:
+            source = str(getattr(article, "source", "")).strip().lower()
+            keys.append(f"sourceid:{source}:{source_id}")
 
         fingerprint = cls._document_fingerprint(article)
         if fingerprint:
@@ -199,6 +208,18 @@ class HLEOAggregator:
         def merge_provenance(winner, duplicate) -> None:
             winner.metadata = dict(getattr(winner, "metadata", {}) or {})
             duplicate_metadata = getattr(duplicate, "metadata", {}) or {}
+            source_values = []
+            for article in (winner, duplicate):
+                values = getattr(article, "sources", None) or []
+                if not values:
+                    values = (getattr(article, "metadata", {}) or {}).get("sources", []) or []
+                if not values and getattr(article, "source", None):
+                    values = [article.source]
+                for value in values:
+                    if value and value not in source_values:
+                        source_values.append(value)
+            winner.sources = source_values
+            winner.metadata["sources"] = source_values
             queries = winner.metadata.setdefault("matched_queries", [])
             for query in duplicate_metadata.get("matched_queries", []):
                 if query not in queries:

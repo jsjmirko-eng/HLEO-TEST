@@ -56,6 +56,8 @@ import time
 import random
 from typing import Any, Optional
 
+from core.logging_utils import redact_text
+
 logger = logging.getLogger(__name__)
 
 # ── Module-level defaults (backward-compat: external importers still see these)
@@ -377,7 +379,7 @@ def _record_call(operation: str, provider: str, model: str, *,
             "completion_tokens": getattr(usage, "completion_tokens", None),
             "cost": cost,
             "fallback": fallback,
-            "error": (str(error)[:200] if error else None),
+            "error": (redact_text(error, max_length=200) if error else None),
         }
     except Exception:
         return

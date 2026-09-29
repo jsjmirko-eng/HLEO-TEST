@@ -71,6 +71,32 @@ def _add_column(conn, table: str, column: str, definition: str) -> None:
     logger.info("Migration: added %s.%s (%s).", table, column, definition)
 
 
+def _migrate_provider_secrets(engine) -> None:
+    """Report legacy provider secrets that need explicit re-entry.
+
+    Legacy XOR/Base64 payloads are intentionally not decoded: they provide no
+    authenticity and accepting them would retain the insecure format. Existing
+    provider rows remain intact until an administrator saves the key again.
+    """
+    from core.llm_provider import is_encrypted_secret
+    from core.models import LLMConfig, LLMProviderSlot
+    from core.database import SessionLocal
+
+    db = SessionLocal(bind=engine)
+    try:
+        for model in (LLMConfig, LLMProviderSlot):
+            for row in db.query(model).all():
+                payload = (getattr(row, "api_key_encrypted", "") or "").strip()
+                if payload and not is_encrypted_secret(payload):
+                    logger.warning(
+                        "Provider secret %s id=%s uses an unsupported legacy format; "
+                        "re-enter it in Admin settings.",
+                        model.__tablename__, getattr(row, "id", "?"),
+                    )
+    finally:
+        db.close()
+
+
 # ── Individual migrations (ordered, idempotent) ───────────────────────────────
 
 def _migrate_fase_4_1(conn) -> None:
@@ -108,6 +134,7 @@ def run_schema_upgrades(engine=None) -> None:
         with engine.begin() as conn:
             _migrate_fase_4_1(conn)
             _migrate_fase_4_2b(conn)
+        _migrate_provider_secrets(engine)
     except Exception as exc:
         # A migration failure must not prevent the server from starting.
         logger.error("Schema upgrade failed (server continues): %s", exc)

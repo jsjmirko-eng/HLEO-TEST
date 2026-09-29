@@ -24,7 +24,7 @@ from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,8 @@ from core.admin_auth import (
     require_admin,
 )
 from core.database import get_db
+from core.input_limits import MAX_BATCH_ITEMS, MAX_FIELD_CHARS
+from core.logging_utils import redact_text
 from core.llm_provider import decrypt_secret, encrypt_secret, get_active_llm_settings
 from core.models import LLMConfig, LLMProviderSlot, SourceRegistry
 
@@ -206,54 +208,54 @@ def _seed_runtime_sources(db: Session) -> int:
 # ── Pydantic models ──────────────────────────────────────────────────────────
 
 class AdminLoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(max_length=MAX_FIELD_CHARS)
+    password: str = Field(max_length=MAX_FIELD_CHARS)
 
     model_config = {"extra": "ignore"}
 
 
 class LLMConfigRequest(BaseModel):
-    provider: Optional[str] = ""
-    api_key: Optional[str] = None
-    base_url: Optional[str] = ""
-    model: Optional[str] = ""
-    protocol: Optional[str] = "OpenAI-compatible"
+    provider: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    api_key: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    base_url: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    model: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    protocol: Optional[str] = Field("OpenAI-compatible", max_length=MAX_FIELD_CHARS)
 
     model_config = {"extra": "ignore"}
 
 
 class SourceUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    category: Optional[str] = None
-    status: Optional[str] = None
-    authorization_status: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    description: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    category: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    status: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    authorization_status: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
     requires_credentials: Optional[bool] = None
-    credentials_env_vars: Optional[List[str]] = None
+    credentials_env_vars: Optional[List[str]] = Field(None, max_length=MAX_BATCH_ITEMS)
     connection_spec: Optional[dict] = None
-    evidence_level: Optional[str] = None
-    geographic_scope: Optional[str] = None
-    language_codes: Optional[List[str]] = None
+    evidence_level: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    geographic_scope: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    language_codes: Optional[List[str]] = Field(None, max_length=MAX_BATCH_ITEMS)
     estimated_records: Optional[int] = None
 
     model_config = {"extra": "ignore"}
 
 
 class SourceCreate(BaseModel):
-    source_id: str
-    name: str
-    description: Optional[str] = ""
-    category: str = "scientific"
-    runtime_collector: Optional[str] = None
-    integration_type: Optional[str] = "api"
-    source_type: Optional[str] = "rest_api"
-    data_category: Optional[str] = ""
-    evidence_level: Optional[str] = "anecdotal"
+    source_id: str = Field(max_length=MAX_FIELD_CHARS)
+    name: str = Field(max_length=MAX_FIELD_CHARS)
+    description: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    category: str = Field("scientific", max_length=MAX_FIELD_CHARS)
+    runtime_collector: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)
+    integration_type: Optional[str] = Field("api", max_length=MAX_FIELD_CHARS)
+    source_type: Optional[str] = Field("rest_api", max_length=MAX_FIELD_CHARS)
+    data_category: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    evidence_level: Optional[str] = Field("anecdotal", max_length=MAX_FIELD_CHARS)
     requires_credentials: bool = False
-    credentials_env_vars: List[str] = []
+    credentials_env_vars: List[str] = Field(default_factory=list, max_length=MAX_BATCH_ITEMS)
     connection_spec: Optional[dict] = None
-    geographic_scope: Optional[str] = "global"
-    language_codes: List[str] = ["en"]
+    geographic_scope: Optional[str] = Field("global", max_length=MAX_FIELD_CHARS)
+    language_codes: List[str] = Field(default_factory=lambda: ["en"], max_length=MAX_BATCH_ITEMS)
 
     model_config = {"extra": "ignore"}
 
@@ -410,16 +412,17 @@ def test_llm_config(
         client.models.list()
         return {"ok": True, "provider": provider, "message": "Connection successful."}
     except Exception as exc:
-        logger.warning("LLM test connection failed: %s", exc)
-        raise HTTPException(status_code=400, detail=f"Connection failed: {exc}")
+        safe_error = redact_text(exc, max_length=160)
+        logger.warning("LLM test connection failed: %s", safe_error)
+        raise HTTPException(status_code=400, detail=f"Connection failed: {safe_error}")
 
 
 class LLMSlotRequest(BaseModel):
     enabled: Optional[bool] = None
-    name: Optional[str] = ""
-    api_key: Optional[str] = None   # None = leave unchanged; "" = clear
-    base_url: Optional[str] = ""
-    model: Optional[str] = ""
+    name: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    api_key: Optional[str] = Field(None, max_length=MAX_FIELD_CHARS)  # None = leave unchanged; "" = clear
+    base_url: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
+    model: Optional[str] = Field("", max_length=MAX_FIELD_CHARS)
     timeout_s: Optional[float] = 60.0
     max_retries: Optional[int] = 2
     rate_limit_rpm: Optional[int] = None
@@ -768,7 +771,7 @@ def test_source_connection(
                     result["reachable"] = True
                     result["items_returned"] = len(items)
                 except Exception as exc:
-                    result["error"] = str(exc)
+                    result["error"] = redact_text(exc, max_length=240)
         elif collector_key == "calvizie":
 
             from core.rwe.calvizie_collector import CalvizieCollector
@@ -802,6 +805,6 @@ def test_source_connection(
             result["error"] = f"No test probe for collector '{collector_key}'."
     except Exception as exc:
         logger.exception(f"Source test failed for {source_id}")
-        result["error"] = str(exc)
+        result["error"] = redact_text(exc, max_length=240)
 
     return result

@@ -1,9 +1,9 @@
-"""Catena C tests: vocabulary BEFORE retrieval, controlled expansion,
-union+dedup with provenance, global judge pool, score>=0.20, max 400,
-pagination 30, VOCAB OFF backward-compat.
+"""Scientific Chain tests: ClinicalRelation-only query generation,
+union+dedup with provenance, global judge pool, semantic tiers and max 400.
 
-All tests are offline: collectors, resolver and LLM are stubbed.
+All tests are offline: collectors and LLM are stubbed.
 """
+import inspect
 import os
 from unittest.mock import patch
 
@@ -26,17 +26,34 @@ def _relation(query="minoxidil erythema"):
     return ClinicalRelation(
         original_query=query,
         agent={"term": "minoxidil", "normalized": "minoxidil",
-               "role": "drug", "search_terms": ["minoxidil"]},
+               "role": "drug"},
         event={"term": "", "normalized": ""},
         manifestation={"term": "erythema", "normalized": "erythema",
-                       "role": "adverse_event", "search_terms": ["erythema"]},
+                       "role": "adverse_event"},
         relation_type="adverse_effect",
         scientific_query="minoxidil erythema",
     )
 
 
-def _search_with_stubs(monkeypatch, articles_by_query, resolver=None,
-                       judge_score=0.9):
+def test_recovery_query_keeps_agent_event_and_recovery_terms():
+    relation = ClinicalRelation(
+        original_query="caduta indotta da dutasteride, poi si recupera?",
+        agent={"normalized": "dutasteride", "role": "drug"},
+        event={"normalized": "initial hair shedding"},
+        manifestation={"normalized": "hair loss", "role": "condition"},
+        temporal="subsequent recovery",
+        relation_type="adverse_effect",
+        scientific_query="dutasteride AND initial hair shedding AND subsequent hair regrowth",
+    )
+    query = RelationalSearch._retrieval_query(relation)
+    assert query == relation.scientific_query
+    assert "dutasteride" in query
+    assert "hair shedding" in query
+    assert "hair regrowth" in query
+
+
+
+def _search_with_stubs(monkeypatch, articles_by_query, judge_score=0.9):
     """Build a RelationalSearch whose collectors/LLM are stubbed.
 
     articles_by_query: callable(query_string, source) -> list[SearchResult]
@@ -63,94 +80,177 @@ def _search_with_stubs(monkeypatch, articles_by_query, resolver=None,
                         lambda self, q: _relation(q))
     monkeypatch.setattr(RelationalSearch, "_llm_judge",
                         lambda self, batch, rel: [
-                            {"i": j, "label": "relevant", "score": judge_score,
-                             "reason": "stub"} for j in range(len(batch))])
+                            {"i": j, "tier": "A", "label": "relevant",
+                             "score": judge_score, "reason": "stub"}
+                            for j in range(len(batch))])
     monkeypatch.setattr("core.relational_search.time.sleep", lambda *_: None)
 
-    if resolver is not None:
-        monkeypatch.setattr("core.vocab.resolver.build_resolver_from_env",
-                            lambda: resolver)
-    else:
-        monkeypatch.setattr("core.vocab.resolver.build_resolver_from_env",
-                            lambda: None)
     return rs, calls
 
 
-class _FakeMatch:
-    def __init__(self, preferred_term, synonyms, match_kind, provider="rxnorm"):
-        self.preferred_term = preferred_term
-        self.synonyms = synonyms
-        self.match_kind = match_kind
-        self.provider = provider
-        self.confidence = 0.9
-        self.concept_id = "C1"
-        self.semantic_group = "drug"
-        self.language = "en"
-        self.source_url = ""
-        self.metadata = {}
 
-    def model_dump(self):
-        return {"preferred_term": self.preferred_term,
-                "synonyms": self.synonyms, "match_kind": self.match_kind,
-                "provider": self.provider, "confidence": self.confidence,
-                "concept_id": self.concept_id,
-                "semantic_group": self.semantic_group,
-                "language": self.language, "source_url": self.source_url,
-                "metadata": self.metadata}
+@pytest.mark.parametrize(
+    ("decision", "expected_reason"),
+    [
+        ({"tier": None, "label": "partial", "score": 0.5, "reason": "missing"},
+         "judge tier is missing or invalid"),
+        ({"tier": "B", "label": "partial", "score": 0.5},
+         "judge reason is missing"),
+        ({"tier": "B", "label": "partial", "score": 0.5, "reason": ""},
+         "judge reason is missing"),
+        (None, "judge result is not an object"),
+    ],
+)
+def test_invalid_judge_decisions_are_not_semantic_tiers(decision, expected_reason):
+    normalized = RelationalSearch._validate_judgement(decision)
+    assert normalized["valid"] is False
+    assert normalized["tier"] is None
+    assert normalized["reason"] == expected_reason
 
 
-class _FakeResolution:
-    def __init__(self, matches):
-        self.matches = matches
-
-
-class _FakeResolver:
-    def __init__(self, mapping):
-        self._mapping = mapping
-
-    def resolve_terms(self, terms, language="en"):
-        return {t: self._mapping[t] for t in terms if t in self._mapping}
-
-
-# ── 1. Vocabulary expansion reaches the collector (pre-retrieval) ───────────
-
-def test_vocab_expansion_reaches_collector(monkeypatch):
-    resolver = _FakeResolver({
-        "minoxidil": _FakeResolution([
-            _FakeMatch("minoxidil", ["Rogaine"], "synonym"),
-        ]),
+@pytest.mark.parametrize(
+    ("tier", "label"),
+    [("A", "relevant"), ("B", "partial"),
+     ("C", "contextual"), ("D", "not_relevant")],
+)
+def test_valid_judge_decisions_preserve_all_semantic_tiers(tier, label):
+    normalized = RelationalSearch._validate_judgement({
+        "tier": tier, "label": label, "score": 0.5, "reason": "grounded",
     })
-
-    def by_query(query, source):
-        if "rogaine" in query.lower():
-            return [_article("Rogaine induced erythema",
-                             "Rogaine caused erythema in patients", source)]
-        return [_article("Minoxidil erythema study",
-                         "minoxidil erythema trial", source)]
-
-    rs, calls = _search_with_stubs(monkeypatch, by_query, resolver=resolver)
-    out = rs.search("minoxidil erythema")
-    assert out is not None
-    all_queries = [q for q, _ in calls["pubmed"]]
-    assert any("rogaine" in q.lower() for q in all_queries), \
-        f"vocabulary synonym never reached collector: {all_queries}"
-    # original/canonical query also present
-    assert any("minoxidil" in q.lower() for q in all_queries)
+    assert normalized == {
+        "valid": True,
+        "tier": tier,
+        "label": label,
+        "score": 0.5,
+        "reason": "grounded",
+    }
 
 
-def test_vocab_off_no_expansion(monkeypatch):
-    def by_query(query, source):
-        return [_article("Minoxidil erythema", "minoxidil erythema", source)]
+def test_incomplete_judge_is_not_counted_as_b_or_kept(monkeypatch):
+    rs, _calls = _search_with_stubs(
+        monkeypatch,
+        lambda query, source: [_article("incomplete judge result", query, source)],
+    )
+    monkeypatch.setattr(
+        RelationalSearch, "_llm_judge",
+        lambda self, batch, rel: [{"i": 0, "label": "partial", "score": 0.5}],
+    )
+    result = rs.search("incomplete judge")
+    assert result["stats"]["judge_invalid"] == 1
+    assert result["stats"]["judge_tiers"]["B"] == 0
+    assert result["stats"]["final_count"] == 0
+    assert all(not result[source] for source in ("pubmed", "europepmc", "clinicaltrials"))
 
-    rs, calls = _search_with_stubs(monkeypatch, by_query, resolver=None)
-    out = rs.search("minoxidil erythema")
-    assert out is not None
-    assert out["stats"]["vocab_enabled"] is False
-    all_queries = [q for q, _ in calls["pubmed"]]
-    assert all("rogaine" not in q.lower() for q in all_queries)
+
+def test_malformed_judge_response_is_invalid(monkeypatch):
+    rs, _calls = _search_with_stubs(
+        monkeypatch,
+        lambda query, source: [_article("malformed judge result", query, source)],
+    )
+    monkeypatch.setattr(RelationalSearch, "_llm_judge", lambda self, batch, rel: "not-json")
+    result = rs.search("malformed judge")
+    assert result["stats"]["judge_invalid"] == 1
+    assert result["stats"]["judge_tiers"] == {"A": 0, "B": 0, "C": 0, "D": 0}
+    assert result["stats"]["final_count"] == 0
 
 
-# ── 2. Union + dedup: same doc via original and expansion = one candidate ───
+
+
+# ── 1. Scientific Chain has no vocabulary-provider path ─────────────────────
+
+def test_scientific_never_calls_vocabulary_provider(monkeypatch):
+    def fail_if_called():
+        raise AssertionError("Scientific Chain must not build a vocabulary resolver")
+
+    monkeypatch.setattr("core.vocab.resolver.build_resolver_from_env", fail_if_called)
+    rs = RelationalSearch.__new__(RelationalSearch)
+    rs._client = object()
+    rs._rel_cache = {}
+    relation = _relation("gonfiore oculare con utilizzo di minoxidil topico")
+    monkeypatch.setattr(RelationalSearch, "_extract_relation", lambda self, query: relation)
+    rs.pubmed = type("Collector", (), {"search": lambda self, query, limit=None: []})()
+    rs.europepmc = type("Collector", (), {"search": lambda self, query, limit=None: []})()
+    rs.clinicaltrials = type("Collector", (), {"search": lambda self, query, limit=None: []})()
+    monkeypatch.setattr(RelationalSearch, "_llm_judge", lambda self, batch, rel: [])
+    result = rs.search(relation.original_query)
+    assert result is not None
+    assert result["relation"].expanded_queries[0]["query_origin"] != "vocabulary"
+
+
+
+def test_scientific_chain_has_no_terminology_expansion_symbols():
+    source = inspect.getsource(RelationalSearch)
+    assert "build_resolver_from_env" not in source
+    assert "core.vocab" not in source
+    assert "search_terms" not in source
+    assert "_CAUSAL" not in source
+    assert "relation_cues" not in source
+
+
+def test_semantic_query_is_sent_unchanged_to_all_collectors(monkeypatch):
+    rs, calls = _search_with_stubs(
+        monkeypatch,
+        lambda query, source: [_article("semantic result", query, source)],
+    )
+    relation = ClinicalRelation(
+        original_query="gonfiore oculare con utilizzo di minoxidil topico",
+        agent={"normalized": "minoxidil", "role": "drug"},
+        event={"normalized": "ocular swelling"},
+        manifestation={"normalized": "swelling", "role": "adverse_effect",
+                       "site": {"normalized": "ocular"}},
+        formulation={"normalized": "topical"},
+        relation_type="adverse_effect",
+        scientific_query="minoxidil topical AND ocular swelling",
+    )
+    monkeypatch.setattr(RelationalSearch, "_extract_relation", lambda self, query: relation)
+    result = rs.search(relation.original_query)
+    assert result is not None
+    queries = [query for source_calls in calls.values() for query, _ in source_calls]
+    assert queries == [relation.scientific_query] * 3
+    assert all(provenance["query_origin"] != "vocabulary"
+               for provenance in relation.expanded_queries)
+
+
+def test_relation_extraction_discards_terminology_lists(monkeypatch):
+    rs = RelationalSearch.__new__(RelationalSearch)
+    rs._rel_cache = {}
+    rs._rel_cache_maxsize = 8
+    monkeypatch.setattr(rs, "_llm_json", lambda *args, **kwargs: {
+        "query_original": "gonfiore oculare con utilizzo di minoxidil topico",
+        "agent": {"term": "minoxidil", "normalized": "minoxidil", "role": "drug",
+                   "search_terms": ["Rogaine"]},
+        "event": {"term": "ocular swelling", "normalized": "ocular swelling"},
+        "manifestation": {"term": "swelling", "normalized": "swelling",
+                           "role": "adverse_effect", "search_terms": ["Megamitochondria"],
+                           "site": {"term": "oculare", "normalized": "ocular",
+                                    "search_terms": ["periocular"]}},
+        "formulation": {"term": "topico", "normalized": "topical",
+                         "search_terms": ["cream"]},
+        "relation_type": "adverse_effect",
+        "scientific_query": "minoxidil topical AND ocular swelling",
+        "relation_phrases": [],
+    })
+    relation = rs._extract_relation("gonfiore oculare con utilizzo di minoxidil topico")
+    assert "search_terms" not in relation.agent
+    assert "search_terms" not in relation.manifestation
+    assert "search_terms" not in relation.manifestation["site"]
+    assert "search_terms" not in relation.formulation
+
+
+def test_recovery_query_has_no_internal_expansion():
+    relation = ClinicalRelation(
+        original_query="caduta indotta da dutasteride, poi si recupera?",
+        agent={"normalized": "dutasteride", "role": "drug"},
+        event={"normalized": "hair shedding"},
+        manifestation={"normalized": "hair loss", "role": "adverse_effect"},
+        temporal="subsequent recovery",
+        relation_type="adverse_effect",
+        scientific_query="dutasteride AND hair loss induced by dutasteride, then recovery",
+    )
+    assert RelationalSearch._retrieval_query(relation) == relation.scientific_query
+
+
+# ── 2. Union + dedup: same doc via one semantic query = one candidate ───────
 
 def test_dedup_merges_provenance(monkeypatch):
     shared = _article("Minoxidil erythema RCT",
@@ -160,12 +260,7 @@ def test_dedup_merges_provenance(monkeypatch):
     def by_query(query, source):
         return [shared]  # same object via every query
 
-    resolver = _FakeResolver({
-        "minoxidil": _FakeResolution([
-            _FakeMatch("minoxidil", ["Rogaine"], "synonym"),
-        ]),
-    })
-    rs, calls = _search_with_stubs(monkeypatch, by_query, resolver=resolver)
+    rs, calls = _search_with_stubs(monkeypatch, by_query)
     out = rs.search("minoxidil erythema")
     assert out is not None
     total = sum(len(out[k]) for k in ("pubmed", "europepmc", "clinicaltrials"))
@@ -175,24 +270,18 @@ def test_dedup_merges_provenance(monkeypatch):
     assert len(prov) >= 1
 
 
-# ── 3. related_concept never becomes a retrieval expansion ─────────────────
+# ── 3. ClinicalRelation produces exactly one retrieval query ─────────────────
 
-def test_related_concept_not_expanded(monkeypatch):
-    resolver = _FakeResolver({
-        "minoxidil": _FakeResolution([
-            _FakeMatch("alopecia", ["androgenetic alopecia"], "related_concept"),
-        ]),
-    })
-
+def test_clinical_relation_produces_one_query(monkeypatch):
     def by_query(query, source):
-        return [_article("Minoxidil erythema", "minoxidil erythema", source)]
+        return [_article("Minoxidil erythema", query, source)]
 
-    rs, calls = _search_with_stubs(monkeypatch, by_query, resolver=resolver)
+    rs, calls = _search_with_stubs(monkeypatch, by_query)
     out = rs.search("minoxidil erythema")
     assert out is not None
-    all_queries = [q for q, _ in calls["pubmed"]]
-    assert not any("androgenetic alopecia" in q.lower() for q in all_queries), \
-        f"related_concept leaked into retrieval: {all_queries}"
+    assert len(calls["pubmed"]) == 1
+    assert len(calls["europepmc"]) == 1
+    assert len(calls["clinicaltrials"]) == 1
 
 
 # ── 4. Global judge pool + score threshold + max 400 ───────────────────────
@@ -220,15 +309,16 @@ def test_below_threshold_filtered(monkeypatch):
     def by_query(query, source):
         return [_article("Minoxidil erythema", "minoxidil erythema", source)]
 
-    # The 0.20 threshold applies to final_score = judge raw + relation_bonus
-    # (approved relation-aware contract). A clearly irrelevant judge score
-    # (0.05) stays below 0.20 even with this article's relation bonus
-    # (~0.11 → final_score 0.16 < 0.20).
+    # Numeric confidence does not override the semantic tier. A Judge result
+    # labelled relevant is retained even when its explanatory score is low.
     rs, _ = _search_with_stubs(monkeypatch, by_query, judge_score=0.05)
     out = rs.search("minoxidil erythema")
     assert out is not None
     total = sum(len(out[k]) for k in ("pubmed", "europepmc", "clinicaltrials"))
-    assert total == 0, "final_score below 0.20 must be filtered by the threshold"
+    assert total == 1
+    item = out["pubmed"][0]
+    assert item.metadata["semantic_tier"] == "A"
+    assert item.metadata["final_score"] == 0.05
 
 
 # ── 5. No per-source top-N before global ranking ────────────────────────────
@@ -254,10 +344,10 @@ def test_scientific_relation_bonus_prefers_relation_specific_paper(monkeypatch):
     relation = ClinicalRelation(
         original_query="minoxidil hypertrichosis",
         agent={"term": "minoxidil", "normalized": "minoxidil",
-               "role": "drug", "search_terms": ["minoxidil"]},
+               "role": "drug"},
         event={"term": "", "normalized": ""},
         manifestation={"term": "hypertrichosis", "normalized": "hypertrichosis",
-                       "role": "adverse_effect", "search_terms": ["hypertrichosis"]},
+                       "role": "adverse_effect"},
         relation_type="adverse_effect",
         scientific_query="minoxidil hypertrichosis",
     )
@@ -289,10 +379,10 @@ def test_relation_match_boosts_adverse_effect_query(monkeypatch):
     relation = ClinicalRelation(
         original_query="minoxidil hypertrichosis",
         agent={"term": "minoxidil", "normalized": "minoxidil",
-               "role": "drug", "search_terms": ["minoxidil"]},
+               "role": "drug"},
         event={"term": "", "normalized": ""},
         manifestation={"term": "hypertrichosis", "normalized": "hypertrichosis",
-                       "role": "adverse_effect", "search_terms": ["hypertrichosis"]},
+                       "role": "adverse_effect"},
         relation_type="adverse_effect",
         scientific_query="minoxidil hypertrichosis",
         relation_phrases=["hypertrichosis appeared"],
@@ -310,15 +400,20 @@ def test_relation_match_boosts_adverse_effect_query(monkeypatch):
 
     rs, _ = _search_with_stubs(monkeypatch, by_query, judge_score=0.8)
     monkeypatch.setattr(RelationalSearch, "_extract_relation", lambda self, q: relation)
+    monkeypatch.setattr(RelationalSearch, "_llm_judge", lambda self, batch, rel: [
+        {"i": i,
+         "tier": "A" if "hypertrichosis" in article.title.lower() else "B",
+         "label": "relevant" if "hypertrichosis" in article.title.lower() else "partial",
+         "score": 0.8, "reason": "stub"}
+        for i, article in enumerate(batch)
+    ])
     out = rs.search("minoxidil hypertrichosis")
     assert out is not None
     flat = [item for src in ("pubmed", "europepmc", "clinicaltrials") for item in out[src]]
     assert len(flat) >= 2
-    # relation bonus present in metadata and connected to the final ranking
-    assert "relation_bonus" in (flat[0].metadata or {})
-    assert flat[0].metadata["relation_bonus"] > 0
     assert flat[0].title == "Minoxidil hypertrichosis report"
-    assert flat[0].metadata["relation_bonus"] > flat[1].metadata["relation_bonus"]
+    assert flat[0].metadata["semantic_tier"] == "A"
+    assert flat[1].metadata["semantic_tier"] == "B"
 
 
 
@@ -411,16 +506,14 @@ def test_dedup_keeps_distinct_articles_with_similar_titles():
     assert len(cleaned["europepmc"]) == 2
 
 
-def test_semantic_judge_tier_keeps_a_and_excludes_c(monkeypatch):
+def test_semantic_judge_tier_ranks_a_before_c(monkeypatch):
     relation = ClinicalRelation(
         original_query="ricrescita sulle tempie con dutasteride",
-        agent={"term": "dutasteride", "normalized": "dutasteride", "role": "drug",
-               "search_terms": ["dutasteride"]},
+        agent={"term": "dutasteride", "normalized": "dutasteride", "role": "drug"},
         event={"term": "ricrescita", "normalized": "hair regrowth"},
-        anatomical_site={"term": "tempie", "normalized": "temporal region", "role": "site",
-                         "search_terms": ["temples", "temporal region"]},
+        anatomical_site={"term": "tempie", "normalized": "temporal region", "role": "site"},
         manifestation={"term": "alopecia androgenetica", "normalized": "androgenetic alopecia",
-                       "role": "condition", "search_terms": ["androgenetic alopecia"]},
+                       "role": "condition"},
         relation_type="efficacy",
         scientific_query="dutasteride AND hair regrowth",
         canonical_query="dutasteride AND hair regrowth",
@@ -448,7 +541,7 @@ def test_semantic_judge_tier_keeps_a_and_excludes_c(monkeypatch):
             {
                 "i": i,
                 "tier": "A" if "temporal" in article.title.lower() else "C",
-                "label": "relevant" if "temporal" in article.title.lower() else "partial",
+                "label": "relevant" if "temporal" in article.title.lower() else "contextual",
                 "score": 1.0 if "temporal" in article.title.lower() else 0.15,
                 "reason": "direct relation" if "temporal" in article.title.lower() else "generic context",
             }
@@ -459,10 +552,12 @@ def test_semantic_judge_tier_keeps_a_and_excludes_c(monkeypatch):
     out = rs.search(relation.original_query)
     flat = [item for src in ("pubmed", "europepmc", "clinicaltrials") for item in out[src]]
     assert [item.title for item in flat] == [
-        "Dutasteride and temporal hairline regrowth in androgenetic alopecia"
+        "Dutasteride and temporal hairline regrowth in androgenetic alopecia",
+        "Review of androgenetic alopecia treatments",
     ]
-    assert flat[0].metadata["semantic_tier"] == "A"
-    assert flat[0].metadata["final_score"] >= 0.20
+    assert [item.metadata["semantic_tier"] for item in flat] == ["A", "C"]
+    assert flat[0].metadata["relevance_reason"] == "direct relation"
+    assert flat[1].metadata["relevance_reason"] == "generic context"
 
 # ── 6. RWE endpoint pagination (30 per page, cached) ────────────────────────
 

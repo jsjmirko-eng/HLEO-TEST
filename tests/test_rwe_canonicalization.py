@@ -62,7 +62,6 @@ def test_canonicalization_rejects_unrelated_provider_n_gram_hits(monkeypatch):
         "alcohol withdrawal",
         "hallucinosis",
         "[xfalls]",
-        "dutasteride acid",
         "dutasteride-tamsulosin",
     ):
         assert forbidden not in joined
@@ -78,7 +77,7 @@ def test_provider_variants_require_anchor_overlap_for_multiword_candidates():
     ) is False
     assert RWEQueryEngine._vocab_variant_allowed(
         "dutasteride", "dutasteride acid", "drug", "fall induced by dutasteride", "umls"
-    ) is False
+    ) is True
     assert RWEQueryEngine._vocab_variant_allowed(
         "dutasteride", "dutasteride 0.5 MG Oral Capsule", "drug",
         "fall induced by dutasteride", "umls"

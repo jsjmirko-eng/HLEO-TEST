@@ -28,7 +28,7 @@ def test_finasteride_filters_combo(monkeypatch):
     engine = RWEQueryEngine(orchestrator=DummyOrch())
     plan = engine.plan("Does Finasteride cause temporary hair loss?")
     expanded = [eq["expanded_term"] for eq in plan.to_dict()["expanded_queries"] if eq.get("query_origin") == "vocabulary"]
-    # Entadfi (combo) must be blocked, Proscar (brand) must be allowed
+    # Combo products stay out; an anchored dosage form remains allowed.
     assert not any("entadfi" in (t or "").lower() for t in expanded)
     assert any("proscar" in (t or "").lower() for t in expanded)
 
@@ -80,9 +80,9 @@ def test_relation_filter_blocks_generic_hair_variants_but_keeps_relevant_events(
     assert RWEQueryEngine._vocab_variant_allowed(
         "dutasteride", "dutasteride acid", "drug", base, "rxnorm"
     )
-    assert RWEQueryEngine._vocab_variant_allowed(
+    assert not RWEQueryEngine._vocab_variant_allowed(
         "hair loss", "alopecia", "symptom", base, "mesh"
     )
-    assert RWEQueryEngine._vocab_variant_allowed(
+    assert not RWEQueryEngine._vocab_variant_allowed(
         "finasteride", "Proscar", "drug", base, "rxnorm"
     )

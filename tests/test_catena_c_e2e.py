@@ -1,22 +1,18 @@
 """
-End-to-end verification of the Catena C as the SINGLE terminology layer
-shared by Scientific and RWE.
+End-to-end verification of Catena C and Scientific/RWE separation.
 
 Proves, through the real pipeline code (orchestrator, resolver, query engine,
 intent, scoring, judge, ranking — with network/LLM stubbed only at the outer
 boundary, as everywhere in this suite):
 
- 1. the query enters the Catena C;
- 2. the language is identified WITHOUT the old 5-language hardcoded limit;
+ 1. the query enters Catena C for RWE terminology resolution;
+ 2. language identification is authoritative when supplied by the orchestrator;
  3. the query intent is determined;
- 4. the configured external providers are queried;
- 5. synonyms, variants, slang and related terms are retrieved when available;
- 6. entities are recognised;
- 7. the side-set used by RWE and Scientific comes from the same resolutions;
- 8. RWE and Scientific use the SAME resolver;
- 9. scoring, judge, ranking and retrieval receive the expected contracts;
-10. none of these functions depends on SYMPTOM_ALIASES, MESH_MAP or any other
-    hardcoded dictionary (biomedical_kb is not imported anywhere).
+ 4. configured external providers are used by RWE only;
+ 5. entities are recognised from external provider responses;
+ 6. Scientific preserves its ClinicalRelation without provider expansion;
+ 7. scoring, judge, ranking and retrieval receive the expected contracts;
+ 8. no production module depends on biomedical_kb or local terminology tables.
 
 Multilingual: Portuguese, Japanese and Dutch are NOT in the old heuristic set
 (IT/EN/DE/FR/ES) — the tests verify the Catena C does not silently fall back
@@ -120,11 +116,11 @@ def test_language_heuristic_is_only_a_hint(monkeypatch):
     assert plan.detected_language == "und"
 
 
-# ── 7+8. RWE and Scientific share the SAME resolver and side content ─────────
+# ── 7+8. RWE resolver and Scientific enrichment stay separated ─────────────
 
 def test_rwe_and_scientific_share_resolver_and_terminology(monkeypatch):
-    """One resolver instance serves BOTH engines; the same provider term
-    appears in the RWE scoring side-set AND in the Scientific expansion."""
+    """RWE keeps provider terms in its side-set; Scientific keeps them as
+    enrichment and never sends them to retrieval."""
     resolver = patch_resolver(monkeypatch, default_resolver())
 
     # ── RWE side ──
@@ -141,20 +137,21 @@ def test_rwe_and_scientific_share_resolver_and_terminology(monkeypatch):
     rel = ClinicalRelation(
         original_query="minoxidil hypertrichosis",
         agent={"term": "minoxidil", "normalized": "minoxidil",
-               "role": "drug", "search_terms": ["minoxidil"]},
+               "role": "drug"},
         event={"term": "", "normalized": ""},
         manifestation={"term": "hypertrichosis", "normalized": "hypertrichosis",
-                       "role": "adverse_effect", "search_terms": ["hypertrichosis"]},
+                       "role": "adverse_effect"},
         relation_type="adverse_effect",
         scientific_query="minoxidil hypertrichosis",
     )
     expanded = rs._expand_relation(rel, "minoxidil hypertrichosis")
-    scientific_queries = " ".join(v[2]["query"].lower() for v in expanded[0] if isinstance(v, tuple)) if expanded else ""
-    flat = " ".join(str(v).lower() for v in expanded)
-    assert "excessive hair growth" in flat  # same provider term, scientific side
+    assert len(expanded) == 1
+    assert expanded[0][1]["query_origin"] != "vocabulary"
+    assert rs._build_pubmed_query(rel) == rel.scientific_query
+    assert not hasattr(rel, "enrichment")
 
-    # 8. the SAME resolver instance served both
-    assert resolver.calls, "resolver never called"
+    # RWE exercises the configured resolver; Scientific does not invoke it.
+    assert resolver.calls, "RWE resolver never called"
 
 
 # ── 9. Contracts: scoring / judge / ranking / retrieval unchanged ───────────
@@ -171,10 +168,10 @@ def test_scientific_scoring_judge_ranking_contract(monkeypatch):
     relation = ClinicalRelation(
         original_query="minoxidil hypertrichosis",
         agent={"term": "minoxidil", "normalized": "minoxidil",
-               "role": "drug", "search_terms": ["minoxidil"]},
+               "role": "drug"},
         event={"term": "", "normalized": ""},
         manifestation={"term": "hypertrichosis", "normalized": "hypertrichosis",
-                       "role": "adverse_effect", "search_terms": ["hypertrichosis"]},
+                       "role": "adverse_effect"},
         relation_type="adverse_effect",
         scientific_query="minoxidil hypertrichosis",
         relation_phrases=["hypertrichosis appeared"],
@@ -208,20 +205,22 @@ def test_scientific_scoring_judge_ranking_contract(monkeypatch):
                         lambda self, q: relation)
     monkeypatch.setattr(RelationalSearch, "_llm_judge",
                         lambda self, batch, rel: [
-                            {"i": j, "label": "relevant", "score": 0.8,
-                             "reason": "stub"} for j in range(len(batch))])
+                            {"i": j,
+                             "tier": "A" if "hypertrichosis" in article.title.lower() else "B",
+                             "label": "relevant" if "hypertrichosis" in article.title.lower() else "partial",
+                             "score": 0.8, "reason": "stub"}
+                            for j, article in enumerate(batch)])
     monkeypatch.setattr("core.relational_search.time.sleep", lambda *_: None)
 
     out = rs.search("minoxidil hypertrichosis")
     assert out is not None
     flat = [item for src in ("pubmed", "europepmc", "clinicaltrials") for item in out[src]]
     assert len(flat) >= 2
-    # contract: relation_bonus metadata present, threshold on final_score,
-    # relation-specific article first
+    # Semantic tier is primary: the direct relation is A and context is B.
     assert flat[0].title == "Minoxidil hypertrichosis report"
-    assert flat[0].metadata["relation_bonus"] > flat[1].metadata["relation_bonus"]
+    assert [item.metadata["semantic_tier"] for item in flat[:2]] == ["A", "B"]
     for item in flat:
-        assert float(item.metadata["final_score"]) >= 0.20
+        assert 0.0 <= item.metadata["final_score"] <= 1.0
         assert 0.0 <= item.metadata["relevance_score"] <= 1.0
 
 

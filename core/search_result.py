@@ -24,3 +24,12 @@ class SearchResult:
     score: float = 0.0
 
     metadata: dict = field(default_factory=dict)
+
+    # Extended scientific metadata; appended to preserve legacy positional calls.
+    pmcid: Optional[str] = None
+    full_text_url: Optional[str] = None
+    language: Optional[str] = None
+    original_title: Optional[str] = None
+    source_id: Optional[str] = None
+    full_text_available: Optional[bool] = None
+    sources: List[str] = field(default_factory=list)

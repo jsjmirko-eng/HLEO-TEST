@@ -21,6 +21,27 @@ HLEO READY
 > `core/relational_search.py`, `core/rwe/*`). The bootloader verifies them
 > through the HTTP endpoints they expose, which is the real readiness signal.
 
+## Database behavior
+
+The full bootloader path is:
+
+```text
+scripts/bootloader.sh → scripts/setup.sh → scripts/start.sh
+```
+
+The bootloader's Database stage is a preflight/setup step. `scripts/setup.sh`
+currently runs the schema initialization with fail-fast behavior, so an
+unreachable configured database can still stop the complete bootloader before
+the backend starts.
+
+This is distinct from starting the API directly with `api/main.py`. The API
+startup initializes the database on a best-effort basis: when the database is
+available, schema initialization proceeds normally; when it is unavailable,
+the API may still start. Features that require persistence can remain
+unavailable, while Scientific Search must remain usable without the database.
+This does not make all HLEO functionality database-independent.
+
+
 ## Idempotency
 
 Every stage is idempotent:

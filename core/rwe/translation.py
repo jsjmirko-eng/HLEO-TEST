@@ -104,13 +104,12 @@ def _llm_translate(client, query: str, prompt: str) -> str:
 
 
 def _deterministic_fallback(query: str, lang: str) -> str:
-    """English keyword query from provider-recognised entities (Catena C).
+    """Preserve the complete relation while replacing recognised surfaces.
 
-    Resolves the source-language text through the vocabulary providers and
-    joins the canonical (English) entity names — e.g. "isotretinoina" →
-    "isotretinoin" (RxNorm), "dolore articolare" → "joint pain" (ConceptNet/
-    MeSH when mapped). Returns "" when no entity is recognised.
+    Provider matches may improve known entity surfaces, but they are not
+    allowed to discard the manifestation or relation expressed by the user.
     """
+    original = re.sub(r"\s+", " ", query or "").strip()
     try:
         from core.vocab.entities import (
             normalize_relation_connectors,
@@ -119,7 +118,7 @@ def _deterministic_fallback(query: str, lang: str) -> str:
         from core.vocab.resolver import build_resolver_from_env
         resolver = build_resolver_from_env()
         if resolver is None:
-            return ""
+            return original
         rec = recognize(query, lang or "en", resolver)
         surfaces = getattr(rec, "surfaces", {}) or {}
         if surfaces:
@@ -141,16 +140,13 @@ def _deterministic_fallback(query: str, lang: str) -> str:
                 )
             return re.sub(r"\s+", " ", translated).strip()
 
-        canonicals = []
-        for _etype, canonical, _conf in rec.entities:
-            if canonical and canonical.lower() not in {
-                    c.lower() for c in canonicals}:
-                canonicals.append(canonical)
-        return " ".join(canonicals)
+        # No safe surface-to-canonical alignment is available. Preserve the
+        # full query rather than reducing it to whichever entity was found.
+        return re.sub(r"\s+", " ", normalize_relation_connectors(query)).strip()
     except Exception as exc:  # noqa: BLE001 — fallback must never raise
         logger.info("RWE deterministic translation fallback failed (%s)",
                     type(exc).__name__)
-        return ""
+        return original
 
 
 def translate_for_rwe(

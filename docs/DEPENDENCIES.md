@@ -23,6 +23,7 @@ psycopg2-binary==2.9.12
 pydantic==2.13.4
 bcrypt==5.0.0
 openai==3.0.0
+cryptography==46.0.5
 python-dotenv==1.2.2
 pytest==9.1.1
 jinja2==3.1.6

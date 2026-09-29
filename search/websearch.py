@@ -1,5 +1,11 @@
+import logging
 from typing import List
+
 from ddgs import DDGS
+
+from core.logging_utils import redact_text
+
+logger = logging.getLogger(__name__)
 
 
 class WebSearch:
@@ -13,7 +19,6 @@ class WebSearch:
         try:
             with DDGS() as ddgs:
                 results = ddgs.text(query, max_results=10)
-                print(results)
 
                 for result in results:
                     url = result.get("href")
@@ -21,6 +26,6 @@ class WebSearch:
                         urls.append(url)
 
         except Exception as e:
-            print("WebSearch error:", e)
+            logger.warning("WebSearch failed: %s", redact_text(e, max_length=160))
 
         return urls

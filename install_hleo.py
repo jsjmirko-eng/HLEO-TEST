@@ -1,6 +1,8 @@
+import getpass
 import os
-import sys
+import secrets
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -61,6 +63,7 @@ sqlalchemy==2.0.52
 psycopg2-binary==2.9.12
 pydantic==2.13.4
 bcrypt==5.0.0
+cryptography==46.0.5
 openai==3.0.0
 python-dotenv==1.2.2
 pytest==9.1.1
@@ -81,10 +84,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 POSTGRES_USER = os.getenv("POSTGRES_USER", "hleo_admin")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "hleo_secure")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "").strip()
 POSTGRES_DB = os.getenv("POSTGRES_DB", "hleo_db")
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+if not POSTGRES_PASSWORD:
+    raise RuntimeError("POSTGRES_PASSWORD must be configured")
 
 SQLALCHEMY_DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
@@ -350,26 +355,53 @@ def check_docker():
         sys.exit(1)
     print("[OK] Docker è operativo.")
 
+def _config_value(name: str, prompt: str, *, secret: bool = False) -> str:
+    value = os.getenv(name, "").strip()
+    if value:
+        return value
+    reader = getpass.getpass if secret else input
+    return reader(prompt).strip()
+
+
 def setup_env():
-    """Chiede all'utente la chiave API e genera il file .env."""
+    """Read deployment secrets from environment or non-echoing prompts."""
     print("\n" + "="*50)
     print("CONFIGURAZIONE AMBIENTE HLEO v1.0")
     print("="*50)
-    
-    api_key = input("Inserisci la tua OPENAI_API_KEY: ").strip()
-    if not api_key:
-        print("[ERRORE] La API Key è obbligatoria per HLEO.")
+
+    api_key = _config_value("OPENAI_API_KEY", "Inserisci la tua OPENAI_API_KEY: ", secret=True)
+    postgres_password = _config_value(
+        "POSTGRES_PASSWORD", "Inserisci la password PostgreSQL: ", secret=True
+    )
+    if not api_key or not postgres_password:
+        print("[ERRORE] OPENAI_API_KEY e POSTGRES_PASSWORD sono obbligatorie.")
         sys.exit(1)
 
-    env_content = f"""POSTGRES_USER=hleo_admin
-POSTGRES_PASSWORD=hleo_secure
-POSTGRES_DB=hleo_db
-POSTGRES_HOST=db
-POSTGRES_PORT=5432
+    admin_username = _config_value(
+        "HLEO_ADMIN_USERNAME", "Username admin (invio per disabilitare): "
+    )
+    admin_password_hash = os.getenv("HLEO_ADMIN_PASSWORD_HASH", "").strip()
+    if admin_username and not admin_password_hash:
+        print("[ERRORE] HLEO_ADMIN_PASSWORD_HASH è obbligatorio quando admin è abilitato.")
+        print("Generalo con bcrypt prima di rilanciare l'installer.")
+        sys.exit(1)
+
+    secret_key = os.getenv("HLEO_SECRET_KEY", "").strip() or secrets.token_urlsafe(32)
+    admin_lines = ""
+    if admin_username:
+        admin_lines = (
+            f"HLEO_ADMIN_USERNAME={admin_username}\n"
+            f"HLEO_ADMIN_PASSWORD_HASH={admin_password_hash}\n"
+        )
+
+    env_content = f"""POSTGRES_USER={os.getenv("POSTGRES_USER", "hleo_admin")}
+POSTGRES_PASSWORD={postgres_password}
+POSTGRES_DB={os.getenv("POSTGRES_DB", "hleo_db")}
+POSTGRES_HOST={os.getenv("POSTGRES_HOST", "db")}
+POSTGRES_PORT={os.getenv("POSTGRES_PORT", "5432")}
 OPENAI_API_KEY={api_key}
-MAX_BASELINE_LOOKBACK_DAYS=120
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin
+HLEO_SECRET_KEY={secret_key}
+{admin_lines}MAX_BASELINE_LOOKBACK_DAYS=120
 """
     return env_content
 

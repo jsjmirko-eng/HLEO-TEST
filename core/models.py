@@ -457,7 +457,7 @@ class LLMProviderSlot(Base):
     enabled: False = slot is skipped entirely.
     name: free-form label (e.g. "OpenAI GPT-4o", "Groq Llama", "My Provider").
     protocol: always "OpenAI-compatible" (all supported providers use this).
-    api_key_encrypted: XOR+base64 via encrypt_secret/decrypt_secret.
+    api_key_encrypted: authenticated Fernet ciphertext via encrypt_secret/decrypt_secret.
     base_url: empty = use official OpenAI endpoint.
     model: model name sent in the API call.
     timeout_s: per-call HTTP timeout in seconds (0 = library default).
