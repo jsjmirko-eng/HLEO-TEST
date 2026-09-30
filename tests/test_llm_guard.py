@@ -21,6 +21,7 @@ from core.llm_guard import (
     QuotaExhaustedError,
     LLMCallError,
     call_llm,
+    call_llm_chain,
     call_llm_json,
     classify_429,
 )
@@ -39,6 +40,34 @@ def _make_client(side_effects):
     client = MagicMock()
     client.chat.completions.create.side_effect = side_effects
     return client
+
+
+def test_relational_search_uses_completion_token_parameter(monkeypatch):
+    """The configured gpt-5.4-mini slot requires the newer token parameter."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr("core.llm_guard.time.sleep", lambda _delay: None)
+    client = _make_client([_choice('{"ok": true}')])
+    stage = SimpleNamespace(
+        name="OpenAI",
+        client=client,
+        model_override="gpt-5.4-mini",
+        max_retries=0,
+        slot_index=1,
+    )
+
+    result = call_llm_chain(
+        [stage],
+        messages=[{"role": "user", "content": "relation"}],
+        max_tokens=700,
+        json_mode=True,
+        operation="relational_search_llm",
+    )
+
+    assert result == {"ok": True}
+    kwargs = client.chat.completions.create.call_args.kwargs
+    assert kwargs["max_completion_tokens"] == 700
+    assert "max_tokens" not in kwargs
 
 
 def _rate_limit_exc(msg="Rate limit reached"):

@@ -907,7 +907,12 @@ def call_llm_chain(
                     "temperature": temperature,
                 }
                 if max_tokens is not None:
-                    kwargs["max_tokens"] = max_tokens
+                    token_key = (
+                        "max_completion_tokens"
+                        if operation == "relational_search_llm"
+                        else "max_tokens"
+                    )
+                    kwargs[token_key] = max_tokens
                 if response_format is not None:
                     kwargs["response_format"] = response_format
 

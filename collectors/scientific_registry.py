@@ -6,6 +6,7 @@ from collectors.openaire import OpenAIRECollector
 from collectors.hal import HALCollector
 from collectors.cinii import CiNiiResearchCollector
 from collectors.jstage import JStageCollector
+from collectors.base_search import BASECollector
 
 
 NEW_SCIENTIFIC_COLLECTORS = {
@@ -16,4 +17,5 @@ NEW_SCIENTIFIC_COLLECTORS = {
     "hal": HALCollector,
     "cinii": CiNiiResearchCollector,
     "jstage": JStageCollector,
+    "base": BASECollector,
 }
